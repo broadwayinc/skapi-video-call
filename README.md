@@ -59,7 +59,7 @@ A new screen share or the drawing board goes to the stage on its own, so you nev
 | **Chat** | Opens and closes the chat. A red number on the button counts messages you have not read yet. |
 | **Leave** | Ends the call. You go back to the waiting room and can call again. |
 
-The top bar has three more buttons on the right: **copy the link** (to invite the other person again or from another device), **settings** (change your name) and **fullscreen**.
+The top bar has three more buttons on the right: **copy the link** (to invite the other person again or from another device), **settings** (change your name) and **fullscreen**. The GitHub mark next to them leads to the app's source code.
 
 ### If you cannot hear the other person
 
@@ -206,7 +206,7 @@ Nobody signs up. When you open the page you get a temporary account that is dele
 
 # Running the app yourself
 
-The app is open source and is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
+The app is open source: the code lives at [github.com/broadwayinc/skapi-video-chat](https://github.com/broadwayinc/skapi-video-chat). It is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
 
 ## Run it on your computer
 

@@ -89,6 +89,11 @@ button:disabled {
     stroke-width: 1.4;
 }
 
+.icon-fill {
+    fill: currentColor;
+    stroke: none;
+}
+
 .mirror {
     transform: scaleX(-1);
 }
@@ -175,6 +180,10 @@ button:disabled {
 .icon-btn:hover {
     background: var(--surface);
     color: var(--text);
+}
+
+a.icon-btn {
+    text-decoration: none;
 }
 
 .main {
