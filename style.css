@@ -231,8 +231,28 @@ a.icon-btn {
     height: 100%;
     overflow: auto;
     display: grid;
-    place-items: center;
+    align-content: center;
+    justify-items: center;
+    gap: 1rem;
     padding: 1rem;
+}
+
+.lobby-note {
+    width: min(100%, 30rem);
+    margin: 0;
+    text-align: center;
+    font-size: .8125rem;
+    line-height: 1.5;
+    color: var(--muted);
+}
+
+.lobby-note a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.lobby-note a:hover {
+    text-decoration: underline;
 }
 
 .lobby-card {

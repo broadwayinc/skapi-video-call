@@ -62,13 +62,13 @@ if (!room) {
     urlParams.set("room", room);
     history.replaceState(null, "", "?" + urlParams.toString());
     host = true;
-    try { sessionStorage.setItem("videochat:host", room); } catch (err) { }
+    try { sessionStorage.setItem("videocall:host", room); } catch (err) { }
 } else {
-    try { host = sessionStorage.getItem("videochat:host") === room; } catch (err) { }
+    try { host = sessionStorage.getItem("videocall:host") === room; } catch (err) { }
 }
 const GROUP = "room-" + room;
 let entered = host; // in the room's realtime group, visible to the others (a guest's tab remembers it entered, for reloads)
-try { if (sessionStorage.getItem("videochat:entered") === room) entered = true; } catch (err) { }
+try { if (sessionStorage.getItem("videocall:entered") === room) entered = true; } catch (err) { }
 
 // The address to share: this page with the room.
 function shareUrl() {
@@ -598,7 +598,7 @@ $("btnSound").addEventListener("click", playRemoteAudio);
 $("btnCopy").addEventListener("click", () => copyLink($("btnCopy")));
 $("btnCopyTop").addEventListener("click", () => copyLink());
 $("btnShare").addEventListener("click", () => {
-    navigator.share({ title: "Video chat", text: "Join my video call", url: shareUrl() }).catch(() => { });
+    navigator.share({ title: "Video call", text: "Join my video call", url: shareUrl() }).catch(() => { });
 });
 if (navigator.share) $("btnShare").hidden = false;
 
@@ -626,7 +626,7 @@ $("btnSettingsClose").addEventListener("click", () => $("settingsDialog").close(
 function setMyName(value, from) {
     const name = String(value || "").trim().slice(0, 40) || "Guest";
     me.name = name;
-    try { localStorage.setItem("videochat:name", name); } catch (err) { }
+    try { localStorage.setItem("videocall:name", name); } catch (err) { }
     if (from !== "lobby") $("nameInput").value = name === "Guest" ? "" : name;
     sendChat({ t: "hello", name });
 }
@@ -1236,7 +1236,7 @@ function setLobbyStatus(text, alert) {
 }
 
 function loadName() {
-    try { return localStorage.getItem("videochat:name") || "Guest"; } catch (err) { return "Guest"; }
+    try { return localStorage.getItem("videocall:name") || "Guest"; } catch (err) { return "Guest"; }
 }
 
 function randomId() {
@@ -1317,7 +1317,7 @@ async function enterRoom() {
     setLobbyStatus("Entering...");
     try {
         await skapi.joinRealtime({ group: GROUP });
-        try { sessionStorage.setItem("videochat:entered", room); } catch (err) { }
+        try { sessionStorage.setItem("videocall:entered", room); } catch (err) { }
         await listRoom();
         reconcile();
     } catch (err) {

@@ -1,7 +1,7 @@
 {
-  "name": "skapi-video-chat",
+  "name": "skapi-video-call",
   "version": "1.0.0",
-  "description": "A two-person video call with a shared drawing board and a markdown chat, on Skapi",
+  "description": "An open source video call for two on Skapi: direct browser-to-browser RTC, a shared drawing board and a markdown chat",
   "scripts": {
     "dev": "npx bns port=4000"
   },

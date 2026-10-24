@@ -1,6 +1,8 @@
-# Video Chat
+# Video Call
 
 A private video call for two people, with a shared drawing board and a chat that takes markdown syntax. Open the page, send the link, talk. There is no account to create and nothing to install: it runs in the browser.
+
+Video Call is an open source project that shows a secure video call built in plain HTML on [Skapi](https://www.skapi.com). The two browsers connect to each other directly over Skapi's RTC connection: the video, the voice, the drawing, the chat and the files go straight from one browser to the other, with no server in between.
 
 ![A call in progress](screenshots/call.webp)
 
@@ -206,7 +208,7 @@ Nobody signs up. When you open the page you get a temporary account that is dele
 
 # Running the app yourself
 
-The app is open source: the code lives at [github.com/broadwayinc/skapi-video-chat](https://github.com/broadwayinc/skapi-video-chat). It is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
+The app is open source: the code lives at [github.com/broadwayinc/skapi-video-call](https://github.com/broadwayinc/skapi-video-call). It is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
 
 ## Run it on your computer
 
@@ -242,11 +244,13 @@ The app comes set up with a demo project. To run it on a project of your own:
 
 That is the only change needed. Upload the folder to your web host (or to the hosting that comes with your Skapi project) and share the address.
 
+When the page is hosted at an address of your own, also point the `og:image` and `twitter:image` lines in `index.html` at your copy of `og-image.png`, so that the link shows its preview picture when it is shared.
+
 ## The files
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The page: the waiting room, the call, the chat and the dialogs. The icons are drawn in the file. |
+| `index.html` | The page: the waiting room, the call, the chat and the dialogs. The icons are drawn in the file; the head holds the description and the preview picture (`og-image.png`) that sharing a link shows. |
 | `style.css` | The look. Colours, sizes and fonts are variables at the top. |
 | `app.js` | Everything the app does: the sign-in, the room and its link, the call, the controls, the drawing board, the chat and the files. Each part starts with a comment saying what it does. |
 | `markdown.js` | Turns a chat message into formatted text. Everything that is not formatting is shown exactly as typed, so a message can never change the page. |

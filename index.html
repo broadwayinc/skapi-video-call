@@ -5,11 +5,45 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="color-scheme" content="dark">
-    <title>Video Chat</title>
+    <title>Video Call</title>
+    <meta name="description" content="An open source video call for two that runs in the browser on Skapi. Share a link, talk, draw on a shared board and chat with markdown. The call goes straight from one browser to the other over Skapi's RTC connection, with no server in between.">
+    <link rel="icon" href="favicon.ico">
+    <meta name="theme-color" content="#0d0f14">
+
+    <!-- How the page looks when its link is shared (Open Graph, Twitter cards). When you host your own copy, point og:image and twitter:image at it. -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Skapi Video Call">
+    <meta property="og:title" content="Video Call">
+    <meta property="og:description" content="An open source video call for two that runs in the browser on Skapi. Share a link, talk, draw on a shared board and chat with markdown. The call goes straight from one browser to the other over Skapi's RTC connection, with no server in between.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/broadwayinc/skapi-video-call/master/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="A video call in the browser, with the chat open beside it">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Video Call">
+    <meta name="twitter:description" content="An open source video call for two that runs in the browser on Skapi. Share a link, talk, draw on a shared board and chat with markdown. The call goes straight from one browser to the other over Skapi's RTC connection, with no server in between.">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/broadwayinc/skapi-video-call/master/og-image.png">
+
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.17/dist/skapi.js"></script>
     <script src="markdown.js"></script>
     <script src="app.js" defer></script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Video Call",
+        "alternateName": "Skapi Video Call",
+        "description": "An open source video call for two that runs in the browser on Skapi. Share a link, talk, draw on a shared board and chat with markdown. The call goes straight from one browser to the other over Skapi's RTC connection, with no server in between.",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "A browser with WebRTC, over HTTPS",
+        "isAccessibleForFree": true,
+        "image": "https://raw.githubusercontent.com/broadwayinc/skapi-video-call/master/og-image.png",
+        "codeRepository": "https://github.com/broadwayinc/skapi-video-call",
+        "author": { "@type": "Organization", "name": "Broadway Inc", "url": "https://www.skapi.com" }
+    }
+    </script>
 </head>
 
 <body>
@@ -47,7 +81,7 @@
         <header class="topbar">
             <div class="brand">
                 <span class="status-dot" id="statusDot" aria-hidden="true"></span>
-                <span class="brand-name">Video chat</span>
+                <span class="brand-name">Video call</span>
             </div>
             <p class="status" id="statusText" role="status">Signing in...</p>
             <div class="topbar-actions">
@@ -60,7 +94,7 @@
                 <button type="button" class="icon-btn" id="btnFullscreen" title="Fullscreen" aria-label="Fullscreen">
                     <svg class="icon"><use href="#i-maximize"/></svg>
                 </button>
-                <a class="icon-btn" href="https://github.com/broadwayinc/skapi-video-chat" target="_blank" rel="noopener noreferrer" title="Source code on GitHub" aria-label="Source code on GitHub">
+                <a class="icon-btn" href="https://github.com/broadwayinc/skapi-video-call" target="_blank" rel="noopener noreferrer" title="Source code on GitHub" aria-label="Source code on GitHub">
                     <svg class="icon icon-fill"><use href="#i-github"/></svg>
                 </a>
             </div>
@@ -117,6 +151,12 @@
                         <button type="button" class="btn" id="btnCancel" hidden>Cancel</button>
                     </div>
                 </div>
+
+                <p class="lobby-note">
+                    An open source demo of a secure video call on <a href="https://www.skapi.com" target="_blank" rel="noopener noreferrer">Skapi</a>:
+                    the call goes straight from one browser to the other over Skapi's RTC connection, with no server in between.
+                    <a href="https://github.com/broadwayinc/skapi-video-call" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+                </p>
             </section>
 
             <!-- The call: one big view, the other sources as thumbnails, the chat beside it. -->
