@@ -1,6 +1,6 @@
 # Video Chat
 
-A private video call for two people, with a shared drawing board and a chat that understands markdown. Open the page, send the link, talk. There is no account to create and nothing to install: it runs in the browser.
+A private video call for two people, with a shared drawing board and a chat that takes markdown syntax. Open the page, send the link, talk. There is no account to create and nothing to install: it runs in the browser.
 
 ![A call in progress](screenshots/call.webp)
 
@@ -97,6 +97,8 @@ The board stays open while you look at something else: click the other person's 
 
 Press **Chat** to open the chat beside the call. Messages go straight to the other browser and are not kept anywhere; when the call ends, the chat is gone.
 
+**The chat takes markdown syntax.** Whatever you type is shown the way markdown renders it: `**bold**` becomes bold, `# Heading` becomes a heading, a line starting with `- ` becomes a bullet, a web address becomes a link, and code between ``` lines becomes a code block. Plain text stays plain text. The full list is under "Formatting" below.
+
 ![The chat with a highlighted code block](screenshots/chat.webp)
 
 ### Writing a message
@@ -114,7 +116,7 @@ On a phone, the arrow button on the right sends.
 
 ### Formatting
 
-Messages understand markdown, so a little punctuation gives you headings, lists, links and more. The most useful bits:
+These are the markdown marks the chat understands. Type the left column and the message shows the right column:
 
 | Type this | You get |
 | --- | --- |
@@ -215,7 +217,7 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:4001/`. Any other static file server works just as well; `npm run dev` is only a convenience.
+Then open `http://localhost:4000/`. Any other static file server works just as well; `npm run dev` is only a convenience.
 
 Browsers allow the camera, the microphone, screen sharing and calls only on `localhost` or over **https://**. When you put the app on a server, serve it over HTTPS.
 
