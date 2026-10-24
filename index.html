@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+    <meta name="color-scheme" content="dark">
+    <title>Video Chat</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.17/dist/skapi.js"></script>
+    <script src="markdown.js"></script>
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <!-- Icons used by the page (line icons after Feather, MIT). Referenced with <use href="#i-name">. -->
+    <svg hidden xmlns="http://www.w3.org/2000/svg">
+        <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></symbol>
+        <symbol id="i-mic-off" viewBox="0 0 24 24"><path d="M9 9v5a3 3 0 0 0 5.1 2.1M15 10V5a3 3 0 0 0-6 0v1M5 11a7 7 0 0 0 11.5 5.3M19 11a7 7 0 0 1-.6 2.8M12 18v4M8 22h8M3 3l18 18"/></symbol>
+        <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3z"/></symbol>
+        <symbol id="i-camera-off" viewBox="0 0 24 24"><path d="M16 16v.5a1.5 1.5 0 0 1-1.5 1.5H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1M9 6h5.5A1.5 1.5 0 0 1 16 7.5V11l6-3v8M3 3l18 18"/></symbol>
+        <symbol id="i-screen" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M12 14V8M9 11l3-3 3 3"/></symbol>
+        <symbol id="i-draw" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></symbol>
+        <symbol id="i-attach" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+        <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+        <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></symbol>
+        <symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+        <symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></symbol>
+        <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></symbol>
+        <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5zM15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+        <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M20 20H8.5l-5-5a2 2 0 0 1 0-2.9l8.6-8.6a2 2 0 0 1 2.9 0l5.4 5.4a2 2 0 0 1 0 2.9L14 18.2M6 12.5l5.5 5.5"/></symbol>
+        <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+        <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+        <symbol id="i-enter" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></symbol>
+    </svg>
+
+    <div class="app" id="app" data-state="init">
+
+        <header class="topbar">
+            <div class="brand">
+                <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+                <span class="brand-name">Video chat</span>
+            </div>
+            <p class="status" id="statusText" role="status">Signing in...</p>
+            <div class="topbar-actions">
+                <button type="button" class="icon-btn" id="btnCopyTop" title="Copy the call link" aria-label="Copy the call link">
+                    <svg class="icon"><use href="#i-link"/></svg>
+                </button>
+                <button type="button" class="icon-btn" id="btnSettings" title="Settings" aria-label="Settings">
+                    <svg class="icon"><use href="#i-sliders"/></svg>
+                </button>
+                <button type="button" class="icon-btn" id="btnFullscreen" title="Fullscreen" aria-label="Fullscreen">
+                    <svg class="icon"><use href="#i-maximize"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="main">
+
+            <!-- Before and between calls: your camera, your name, the link to share. -->
+            <section class="lobby" id="lobby" aria-label="Waiting room">
+                <div class="lobby-card">
+                    <div class="preview" id="preview">
+                        <video id="previewVideo" autoplay muted playsinline class="mirror"></video>
+                        <div class="preview-off" id="previewOff" hidden>
+                            <svg class="icon icon-lg"><use href="#i-user"/></svg>
+                            <span id="previewOffText">No camera</span>
+                        </div>
+                        <!-- Microphone and camera on or off before the call. The choice is applied the moment the call connects. -->
+                        <div class="preview-ctls">
+                            <button type="button" class="pctl" id="btnPreviewMic" aria-pressed="false" title="Turn the microphone off" aria-label="Turn the microphone off">
+                                <svg class="icon on"><use href="#i-mic"/></svg>
+                                <svg class="icon off"><use href="#i-mic-off"/></svg>
+                            </button>
+                            <button type="button" class="pctl" id="btnPreviewCamera" aria-pressed="false" title="Turn the camera off" aria-label="Turn the camera off">
+                                <svg class="icon on"><use href="#i-camera"/></svg>
+                                <svg class="icon off"><use href="#i-camera-off"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <label class="field">
+                        <span>Your name</span>
+                        <input type="text" id="nameInput" maxlength="40" placeholder="Guest" autocomplete="nickname">
+                    </label>
+
+                    <div class="share">
+                        <span class="share-title">Share this link. Whoever opens it can enter the call.</span>
+                        <div class="share-row">
+                            <input type="text" id="shareInput" readonly aria-label="Link to this call">
+                            <button type="button" class="btn" id="btnCopy">
+                                <svg class="icon"><use href="#i-copy"/></svg><span>Copy</span>
+                            </button>
+                            <button type="button" class="btn" id="btnShare" hidden>
+                                <svg class="icon"><use href="#i-share"/></svg><span>Share</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="lobby-status" id="lobbyStatus"></p>
+                    <div class="lobby-actions">
+                        <button type="button" class="btn primary big" id="btnEnter" hidden>
+                            <svg class="icon"><use href="#i-enter"/></svg><span>Enter</span>
+                        </button>
+                        <button type="button" class="btn primary" id="btnJoin" hidden>Call again</button>
+                        <button type="button" class="btn" id="btnCancel" hidden>Cancel</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- The call: one big view, the other sources as thumbnails, the chat beside it. -->
+            <section class="call" id="call" hidden aria-label="Call">
+                <div class="viewer">
+                    <div class="stage" id="stage">
+                        <video id="stageVideo" autoplay muted playsinline hidden></video>
+
+                        <!-- The shared drawing board. One canvas; the other side draws on the same picture. -->
+                        <div class="board-wrap" id="boardWrap" hidden>
+                            <canvas id="board" width="1600" height="1000" aria-label="Shared drawing board"></canvas>
+                        </div>
+
+                        <div class="stage-empty" id="stageEmpty">
+                            <svg class="icon icon-lg"><use href="#i-user"/></svg>
+                            <span>Waiting for video</span>
+                        </div>
+
+                        <div class="stage-caption" id="stageCaption"></div>
+
+                        <button type="button" class="sound-pill" id="btnSound" hidden>
+                            <svg class="icon"><use href="#i-volume"/></svg><span>Tap to turn on sound</span>
+                        </button>
+
+                        <div class="board-tools" id="boardTools" hidden role="toolbar" aria-label="Drawing tools">
+                            <div class="swatches" role="group" aria-label="Pen colour">
+                                <button type="button" class="swatch" data-color="#111827" style="--c:#111827" aria-label="Black" aria-pressed="true"></button>
+                                <button type="button" class="swatch" data-color="#e11d48" style="--c:#e11d48" aria-label="Red" aria-pressed="false"></button>
+                                <button type="button" class="swatch" data-color="#2563eb" style="--c:#2563eb" aria-label="Blue" aria-pressed="false"></button>
+                                <button type="button" class="swatch" data-color="#16a34a" style="--c:#16a34a" aria-label="Green" aria-pressed="false"></button>
+                                <button type="button" class="swatch" data-color="#f59e0b" style="--c:#f59e0b" aria-label="Orange" aria-pressed="false"></button>
+                                <button type="button" class="swatch" data-color="#7c3aed" style="--c:#7c3aed" aria-label="Purple" aria-pressed="false"></button>
+                            </div>
+                            <div class="sizes" role="group" aria-label="Pen size">
+                                <button type="button" class="size" data-width="3" aria-label="Thin" aria-pressed="false"><i style="--s:4px"></i></button>
+                                <button type="button" class="size" data-width="7" aria-label="Medium" aria-pressed="true"><i style="--s:8px"></i></button>
+                                <button type="button" class="size" data-width="16" aria-label="Thick" aria-pressed="false"><i style="--s:13px"></i></button>
+                            </div>
+                            <button type="button" class="tool" id="btnEraser" aria-pressed="false" title="Eraser">
+                                <svg class="icon"><use href="#i-eraser"/></svg><span>Eraser</span>
+                            </button>
+                            <button type="button" class="tool" id="btnClear" title="Clear the board">
+                                <svg class="icon"><use href="#i-trash"/></svg><span>Clear</span>
+                            </button>
+                            <button type="button" class="tool" id="btnBoardClose" title="Close the board for both of you">
+                                <svg class="icon"><use href="#i-close"/></svg><span>Close</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- One thumbnail per source. Clicking one shows it on the stage. -->
+                    <div class="strip" id="strip">
+                        <button type="button" class="tile" data-view="me-camera" hidden aria-pressed="false">
+                            <video muted autoplay playsinline class="mirror"></video>
+                            <span class="tile-off"><svg class="icon"><use href="#i-camera-off"/></svg></span>
+                            <span class="tile-name">You</span>
+                            <span class="tile-badge" hidden><svg class="icon"><use href="#i-mic-off"/></svg></span>
+                        </button>
+                        <button type="button" class="tile" data-view="them-camera" hidden aria-pressed="false">
+                            <video muted autoplay playsinline></video>
+                            <span class="tile-off"><svg class="icon"><use href="#i-camera-off"/></svg></span>
+                            <span class="tile-name">Guest</span>
+                            <span class="tile-badge" hidden><svg class="icon"><use href="#i-mic-off"/></svg></span>
+                        </button>
+                        <button type="button" class="tile" data-view="me-screen" hidden aria-pressed="false">
+                            <video muted autoplay playsinline></video>
+                            <span class="tile-name">Your screen</span>
+                        </button>
+                        <button type="button" class="tile" data-view="them-screen" hidden aria-pressed="false">
+                            <video muted autoplay playsinline></video>
+                            <span class="tile-name">Guest's screen</span>
+                        </button>
+                        <button type="button" class="tile tile-board" data-view="board" hidden aria-pressed="false">
+                            <canvas width="320" height="200" aria-hidden="true"></canvas>
+                            <span class="tile-name">Drawing board</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Text and files go over the connection's data channels, straight to the other browser. -->
+                <aside class="chat" id="chat" aria-label="Chat">
+                    <header class="chat-head">
+                        <h2>Chat</h2>
+                        <button type="button" class="icon-btn" id="btnChatClose" aria-label="Close the chat">
+                            <svg class="icon"><use href="#i-close"/></svg>
+                        </button>
+                    </header>
+                    <div class="log" id="chatLog" role="log" aria-live="polite"></div>
+                    <form class="composer" id="composer">
+                        <textarea id="chatInput" rows="1" placeholder="Message" aria-label="Message" autocomplete="off"></textarea>
+                        <button type="button" class="icon-btn" id="btnFile" title="Send a file" aria-label="Send a file">
+                            <svg class="icon"><use href="#i-attach"/></svg>
+                        </button>
+                        <button type="submit" class="icon-btn send" title="Send" aria-label="Send">
+                            <svg class="icon"><use href="#i-send"/></svg>
+                        </button>
+                    </form>
+                    <p class="composer-hint">Enter sends, Shift+Enter adds a line, Tab indents. Markdown works; ```js code blocks are highlighted.</p>
+                </aside>
+            </section>
+        </main>
+
+        <!-- Controls during the call -->
+        <footer class="bar" id="bar" hidden>
+            <button type="button" class="ctl" id="btnMic" aria-pressed="false">
+                <svg class="icon on"><use href="#i-mic"/></svg>
+                <svg class="icon off"><use href="#i-mic-off"/></svg>
+                <span class="ctl-label">Mute</span>
+            </button>
+            <button type="button" class="ctl" id="btnCamera" aria-pressed="false">
+                <svg class="icon on"><use href="#i-camera"/></svg>
+                <svg class="icon off"><use href="#i-camera-off"/></svg>
+                <span class="ctl-label">Camera</span>
+            </button>
+            <button type="button" class="ctl" id="btnScreen" aria-pressed="false">
+                <svg class="icon"><use href="#i-screen"/></svg>
+                <span class="ctl-label">Share screen</span>
+            </button>
+            <button type="button" class="ctl" id="btnBoard" aria-pressed="false">
+                <svg class="icon"><use href="#i-draw"/></svg>
+                <span class="ctl-label">Drawing board</span>
+            </button>
+            <button type="button" class="ctl" id="btnChat" aria-pressed="false">
+                <svg class="icon"><use href="#i-chat"/></svg>
+                <span class="ctl-label">Chat</span>
+                <span class="unread" id="unread" hidden></span>
+            </button>
+            <button type="button" class="ctl danger" id="btnLeave">
+                <svg class="icon hangup"><use href="#i-phone"/></svg>
+                <span class="ctl-label">Leave</span>
+            </button>
+        </footer>
+    </div>
+
+    <div class="toasts" id="toasts" aria-live="assertive"></div>
+
+    <!-- Settings during the call: the name the other person sees. -->
+    <dialog class="dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+        <form id="settingsForm" method="dialog">
+            <h2 id="settingsTitle">Settings</h2>
+            <label class="field">
+                <span>Your name</span>
+                <input type="text" id="settingsName" maxlength="40" placeholder="Guest" autocomplete="nickname">
+            </label>
+            <p class="dialog-hint">The other person sees this name in the chat and under your video.</p>
+            <div class="dialog-actions">
+                <button type="button" class="btn" id="btnSettingsClose">Cancel</button>
+                <button type="submit" class="btn primary">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- The other user's voice. Every video element is muted; sound plays from here, whatever is on the stage. -->
+    <audio id="remoteAudio" autoplay></audio>
+    <input type="file" id="fileInput" hidden>
+</body>
+
+</html>

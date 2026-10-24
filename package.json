@@ -1,0 +1,15 @@
+{
+  "name": "skapi-video-chat",
+  "version": "1.0.0",
+  "description": "A two-person video call with a shared drawing board and a markdown chat, on Skapi",
+  "scripts": {
+    "dev": "npx bns port=4000"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "basic-node-server": "^1.1.1"
+  },
+  "main": "app.js",
+  "devDependencies": {},
+  "author": ""
+}
