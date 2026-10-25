@@ -2,13 +2,15 @@
 
 A private video call for two people, with a shared drawing board and a chat that takes markdown syntax. Open the page, send the link, talk. There is no account to create and nothing to install: it runs in the browser.
 
+**Use it now, for free: [videocall.skapi.com](https://videocall.skapi.com/).** Anybody can.
+
 Video Call is an open source project that shows a secure video call built in plain HTML on [Skapi](https://www.skapi.com). The two browsers connect to each other directly over Skapi's RTC connection: the video, the voice, the drawing, the chat and the files go straight from one browser to the other, with no server in between.
 
 ![A call in progress](screenshots/call.webp)
 
 ## Quick start
 
-1. **Open the app.** Your camera preview appears, together with a link.
+1. **Open the app** at [videocall.skapi.com](https://videocall.skapi.com/). Your camera preview appears, together with a link.
 2. **Send the link** to the person you want to talk to. The Copy button puts it on your clipboard.
 3. **They open the link and press Enter.** The call starts.
 
@@ -208,7 +210,7 @@ Nobody signs up. When you open the page you get a temporary account that is dele
 
 # Running the app yourself
 
-The app is open source: the code lives at [github.com/broadwayinc/skapi-video-call](https://github.com/broadwayinc/skapi-video-call). It is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
+The app is open source: the code lives at [github.com/broadwayinc/skapi-video-call](https://github.com/broadwayinc/skapi-video-call), and [videocall.skapi.com](https://videocall.skapi.com/) is this code running on the demo project. It is made of four files with no build step, so it can be hosted anywhere that serves static files. It uses [Skapi](https://www.skapi.com) for the sign-in and for connecting the two browsers.
 
 ## Run it on your computer
 
