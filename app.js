@@ -460,7 +460,6 @@ function renderStage() {
         video.srcObject = null;
     }
     video.classList.toggle("mirror", view === "me-camera"); // your own camera is shown as a mirror, like a preview
-    $("stage").dataset.kind = view && view.endsWith("camera") ? "camera" : "other";
 
     const cameraOff = (view === "me-camera" && !camState.me) || (view === "them-camera" && !camState.them);
     $("stage").dataset.camera = cameraOff ? "off" : "on";
@@ -938,6 +937,69 @@ function openChat(open, silent) {
     }
 }
 
+/*
+    The width of the chat on a wide screen. The handle on the panel's left edge drags it, the arrow keys move it when
+    the handle has the focus, a double-click puts it back, and the width is remembered on this device.
+*/
+const CHAT_WIDTH_KEY = "videocall:chatWidth";
+let chatWidth = 0;
+try { chatWidth = Number(localStorage.getItem(CHAT_WIDTH_KEY)) || 0; } catch (err) { }
+
+function remPx() {
+    return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+// Keeps the chat readable and leaves the stage room: between 16rem and the call's width less 20rem.
+function setChatWidth(px, save) {
+    const call = $("call");
+    const rem = remPx();
+    const min = 16 * rem;
+    const max = Math.max(min, call.clientWidth - 20 * rem);
+    chatWidth = Math.round(Math.min(max, Math.max(min, px)));
+    call.style.setProperty("--chat-width", chatWidth + "px");
+    if (save) {
+        try { localStorage.setItem(CHAT_WIDTH_KEY, String(chatWidth)); } catch (err) { }
+    }
+}
+
+function resetChatWidth() {
+    chatWidth = 0;
+    $("call").style.removeProperty("--chat-width");
+    try { localStorage.removeItem(CHAT_WIDTH_KEY); } catch (err) { }
+}
+
+$("chatResizer").addEventListener("pointerdown", (event) => {
+    if (!wideScreen.matches) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    const right = $("call").getBoundingClientRect().right;
+    const move = (ev) => setChatWidth(right - ev.clientX, false);
+    const stop = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", stop);
+        handle.removeEventListener("pointercancel", stop);
+        document.body.classList.remove("resizing");
+        if (chatWidth) setChatWidth(chatWidth, true);
+        autosize();
+    };
+    try { handle.setPointerCapture(event.pointerId); } catch (err) { }
+    document.body.classList.add("resizing");
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+});
+
+$("chatResizer").addEventListener("dblclick", resetChatWidth);
+
+$("chatResizer").addEventListener("keydown", (event) => {
+    const current = chatWidth || $("chat").getBoundingClientRect().width;
+    if (event.key === "ArrowLeft") setChatWidth(current + 16, true);
+    else if (event.key === "ArrowRight") setChatWidth(current - 16, true);
+    else if (event.key === "Home") resetChatWidth();
+    else return;
+    event.preventDefault();
+});
+
 // On a phone the chat covers the call; leaving the call takes it away.
 function exitChatOverlay() {
     if (!wideScreen.matches) openChat(false, true);
@@ -1237,7 +1299,10 @@ function setState(state) {
     $("lobby").hidden = inCall;
     $("call").hidden = !inCall;
     $("bar").hidden = !inCall;
-    if (inCall) autosize();
+    if (inCall) {
+        if (chatWidth) setChatWidth(chatWidth, false); // the width chosen last time, within what this window allows
+        autosize();
+    }
 }
 
 function setStatus(text) {

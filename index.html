@@ -238,6 +238,8 @@
 
                 <!-- Text and files go over the connection's data channels, straight to the other browser. -->
                 <aside class="chat" id="chat" aria-label="Chat">
+                    <!-- Drag the left edge to make the chat wider or narrower (desktop). Double-click puts the width back. -->
+                    <div class="chat-resizer" id="chatResizer" role="separator" aria-orientation="vertical" aria-label="Resize the chat" title="Drag to resize the chat. Double-click to reset." tabindex="0"></div>
                     <header class="chat-head">
                         <h2>Chat</h2>
                         <button type="button" class="icon-btn" id="btnChatClose" aria-label="Close the chat">

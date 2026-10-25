@@ -97,7 +97,7 @@ The board stays open while you look at something else: click the other person's 
 
 ## Chat
 
-Press **Chat** to open the chat beside the call. Messages go straight to the other browser and are not kept anywhere; when the call ends, the chat is gone.
+Press **Chat** to open the chat beside the call. Messages go straight to the other browser and are not kept anywhere; when the call ends, the chat is gone. On a desktop you can make the chat wider or narrower: drag its left edge, and double-click the edge to put it back. The width is remembered on your device.
 
 **The chat takes markdown syntax.** Whatever you type is shown the way markdown renders it: `**bold**` becomes bold, `# Heading` becomes a heading, a line starting with `- ` becomes a bullet, a web address becomes a link, and code between ``` lines becomes a code block. Plain text stays plain text. The full list is under "Formatting" below.
 
