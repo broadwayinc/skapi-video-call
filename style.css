@@ -94,6 +94,7 @@ button:disabled {
     stroke: none;
 }
 
+/* Your own camera is flipped like a mirror, the way a preview feels natural; nobody else sees it flipped. */
 .mirror {
     transform: scaleX(-1);
 }
@@ -133,6 +134,7 @@ button:disabled {
     transition: background .2s, box-shadow .2s;
 }
 
+.app[data-state="init"] .status-dot,
 .app[data-state="calling"] .status-dot {
     background: var(--warn);
     box-shadow: 0 0 0 3px rgba(251, 191, 36, .22);
@@ -352,6 +354,26 @@ a.icon-btn {
     color: var(--warn);
 }
 
+/* A small ring turns in front of the line while something is in progress: signing in, entering, connecting. */
+.lobby-status.busy::before {
+    content: "";
+    display: inline-block;
+    width: .8em;
+    height: .8em;
+    margin-right: .5em;
+    vertical-align: -.08em;
+    border: 2px solid var(--surface-2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .lobby-actions {
     display: flex;
     justify-content: center;
@@ -402,11 +424,17 @@ a.icon-btn {
     grid-area: 1 / 1;
 }
 
+/* A camera fills the stage, centred and cropped at the edges; a screen or the board is always shown whole. */
 .stage video {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
+    object-position: center;
     display: block;
+}
+
+.stage[data-kind="other"] video {
+    object-fit: contain;
 }
 
 .stage-empty {
@@ -456,11 +484,13 @@ a.icon-btn {
     display: grid;
     place-items: center;
     padding: .75rem;
+    container-type: size;
 }
 
+/* As wide as the stage allows, or as wide as its height allows: 16:10 either way, never stretched. */
 .board-wrap canvas {
-    max-width: 100%;
-    max-height: 100%;
+    width: min(100%, calc(100cqh * 1.6));
+    height: auto;
     aspect-ratio: 16 / 10;
     background: var(--paper);
     border-radius: 8px;
@@ -595,6 +625,11 @@ a.icon-btn {
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+/* A shared screen is never cropped, not even as a thumbnail. */
+.tile[data-view$="screen"] video {
+    object-fit: contain;
 }
 
 .tile-board canvas {
@@ -1268,10 +1303,6 @@ a.icon-btn {
         border-radius: 16px;
     }
 
-    /* A camera fills the tall stage of a phone; a screen or the board keeps its shape. */
-    .stage[data-kind="camera"] video {
-        object-fit: cover;
-    }
 
     .board-wrap {
         padding: .4rem;

@@ -158,7 +158,7 @@ function reconcile() {
     if (me.user_id < p.user_id) {
         callPeer(cid, p).catch((err) => { showError(err.message); setState("lobby"); });
     } else {
-        setLobbyStatus(`${name} is here. Connecting...`);
+        setLobbyStatus(`${name} is here. Connecting...`, false, true);
         setStatus("Connecting...");
     }
 }
@@ -192,7 +192,7 @@ async function mediaOptions() {
 async function callPeer(cid, p) {
     if (rtc || call || receiver || appState() === "calling") return;
     const my = beginCall({ user_id: p.user_id, cid, name: p.name || "Guest" });
-    setLobbyStatus(`Calling ${peer.name}...`);
+    setLobbyStatus(`Calling ${peer.name}...`, false, true);
 
     const options = await mediaOptions();
     if (attempt !== my) return; // cancelled while the camera was opening
@@ -226,7 +226,7 @@ async function acceptCall(rt) {
     receiver = rt;
     peers.set(rt.sender_cid, { user_id: rt.sender, name: rt.meta?.name || null });
     const my = beginCall({ user_id: rt.sender, cid: rt.sender_cid, name: rt.meta?.name || "Guest" });
-    setLobbyStatus(`${peer.name} is calling. Connecting...`);
+    setLobbyStatus(`${peer.name} is calling. Connecting...`, false, true);
 
     const options = await mediaOptions();
     if (attempt !== my) return;
@@ -459,7 +459,7 @@ function renderStage() {
     } else if (video.srcObject) {
         video.srcObject = null;
     }
-    video.classList.toggle("mirror", view === "me-camera");
+    video.classList.toggle("mirror", view === "me-camera"); // your own camera is shown as a mirror, like a preview
     $("stage").dataset.kind = view && view.endsWith("camera") ? "camera" : "other";
 
     const cameraOff = (view === "me-camera" && !camState.me) || (view === "them-camera" && !camState.them);
@@ -1093,6 +1093,19 @@ function indent(outdent) {
     autosize();
 }
 
+// Shift+Enter starts a new line that keeps the indentation of the line it leaves, the way a code editor does.
+function newLine() {
+    const { selectionStart: s, selectionEnd: e, value } = input;
+    const lineStart = value.lastIndexOf("\n", s - 1) + 1;
+    const indentation = /^[ \t]*/.exec(value.slice(lineStart, s))[0]; // the leading tabs and spaces before the caret
+    const text = "\n" + indentation;
+    // execCommand keeps the browser's undo history; setRangeText is the fallback
+    let done = false;
+    try { done = document.execCommand("insertText", false, text); } catch (err) { }
+    if (!done) input.setRangeText(text, s, e, "end");
+    autosize();
+}
+
 input.addEventListener("keydown", (event) => {
     if (event.key === "Tab") {
         event.preventDefault();
@@ -1100,9 +1113,9 @@ input.addEventListener("keydown", (event) => {
         return;
     }
     if (event.key !== "Enter" || event.isComposing || event.keyCode === 229) return; // a phone keyboard still composing a word
-    if (event.shiftKey) return; // Shift+Enter: a new line
     event.preventDefault();
-    submitChat();
+    if (event.shiftKey) newLine();
+    else submitChat();
 });
 
 $("composer").addEventListener("submit", (event) => {
@@ -1193,11 +1206,13 @@ function fileReceived(e) {
     if (!entry) entry = fileRow(false, e.name, e.size);
     incomingFiles.delete(e.id);
     entry.progress.remove();
+    const stick = nearEnd(); // decided before the row grows
     const url = URL.createObjectURL(e.file);
     if (/^image\//.test(e.mime)) {
         const img = document.createElement("img");
         img.src = url;
         img.alt = e.name;
+        img.addEventListener("load", () => { if (stick) scrollToEnd(); }); // the picture gets its height only once it has loaded
         entry.body.append(img);
     }
     const link = document.createElement("a");
@@ -1205,7 +1220,7 @@ function fileReceived(e) {
     link.download = e.name;
     link.innerHTML = `<svg class="icon"><use href="#i-download"/></svg> Download`;
     entry.body.append(link);
-    if (nearEnd()) scrollToEnd();
+    if (stick) scrollToEnd();
 }
 
 /* ---------------------------------------------------------------------------------------------------
@@ -1229,10 +1244,12 @@ function setStatus(text) {
     $("statusText").textContent = text;
 }
 
-function setLobbyStatus(text, alert) {
+// The line under the waiting-room card. `busy` shows a turning ring in front of it while something is in progress.
+function setLobbyStatus(text, alert, busy) {
     const el = $("lobbyStatus");
     el.textContent = lobbyNote ? `${lobbyNote} ${text}` : text;
     el.classList.toggle("alert", Boolean(alert));
+    el.classList.toggle("busy", Boolean(busy));
 }
 
 function loadName() {
@@ -1314,7 +1331,7 @@ async function enterRoom() {
     if (entered) return;
     entered = true;
     $("btnEnter").hidden = true;
-    setLobbyStatus("Entering...");
+    setLobbyStatus("Entering...", false, true);
     try {
         await skapi.joinRealtime({ group: GROUP });
         try { sessionStorage.setItem("videocall:entered", room); } catch (err) { }
@@ -1331,11 +1348,15 @@ $("btnEnter").addEventListener("click", () => { enterRoom(); });
 
 async function main() {
     try {
+        // The camera does not depend on the account: it opens right away, while the sign-in runs.
+        // Signing in takes a moment, longer when a temporary account from an earlier visit has expired and the
+        // SDK has to give it up and make a new one; the waiting room says so meanwhile.
+        previewReady = startPreview();
+        setLobbyStatus("Connecting to the service...", false, true);
         const user = await signIn();
         me.user_id = user.user_id;
         setState("lobby");
         setStatus("Connecting...");
-        previewReady = startPreview();
 
         await skapi.connectRealtime(onRealtime);
         if (entered) {
@@ -1353,6 +1374,7 @@ async function main() {
     } catch (err) {
         console.error(err);
         setStatus("Could not start");
+        setLobbyStatus("Could not connect to the service. Reload the page to try again.", true);
         if (/anonymous login is not enabled/i.test(err?.message || "")) {
             showToast("Anonymous login is turned off for this project.", {
                 error: true, sticky: true,

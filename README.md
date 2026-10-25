@@ -26,7 +26,7 @@ Everyone starts in the waiting room.
   <img src="screenshots/mic-off.webp" width="420" alt="The preview with the microphone turned off">
 - **Your name** is what the other person sees under your video and in the chat. It is remembered on this device.
 - **The link** is the invitation. Press **Copy** to copy it, then paste it into a message, an e-mail or wherever you like. On a phone there is also a **Share** button that opens the usual sharing menu.
-- **The status line** at the bottom says what is happening: waiting for someone, connecting, or who has arrived.
+- **The status line** at the bottom says what is happening: connecting to the service when the page opens (a turning ring shows while it works, which can take a few seconds on a first visit or after a long break), waiting for someone, connecting, or who has arrived.
 
 The call starts by itself as soon as the other person enters. You do not have to accept anything.
 
@@ -110,7 +110,7 @@ Type in the box at the bottom. The box grows as you write.
 | Key | What happens |
 | --- | --- |
 | **Enter** | Sends the message. |
-| **Shift + Enter** | Starts a new line without sending. |
+| **Shift + Enter** | Starts a new line without sending. The new line keeps the indentation of the line you were on, like a code editor. |
 | **Tab** | Indents the line (or every selected line) by one step. |
 | **Shift + Tab** | Removes one step of indentation. |
 

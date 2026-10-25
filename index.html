@@ -107,9 +107,9 @@
                 <div class="lobby-card">
                     <div class="preview" id="preview">
                         <video id="previewVideo" autoplay muted playsinline class="mirror"></video>
-                        <div class="preview-off" id="previewOff" hidden>
+                        <div class="preview-off" id="previewOff">
                             <svg class="icon icon-lg"><use href="#i-user"/></svg>
-                            <span id="previewOffText">No camera</span>
+                            <span id="previewOffText">Starting the camera...</span>
                         </div>
                         <!-- Microphone and camera on or off before the call. The choice is applied the moment the call connects. -->
                         <div class="preview-ctls">
@@ -142,7 +142,7 @@
                         </div>
                     </div>
 
-                    <p class="lobby-status" id="lobbyStatus"></p>
+                    <p class="lobby-status busy" id="lobbyStatus">Connecting to the service...</p>
                     <div class="lobby-actions">
                         <button type="button" class="btn primary big" id="btnEnter" hidden>
                             <svg class="icon"><use href="#i-enter"/></svg><span>Enter</span>
