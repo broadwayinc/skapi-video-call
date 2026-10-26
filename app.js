@@ -36,16 +36,17 @@ const me = { user_id: null, name: loadName() };
     the same account; a regular user who is logged in on this origin is logged out here first.
 */
 async function signIn() {
-    // Validate the restored session with a token refresh before using it. autoLogin brings back the
-    // temporary account of an earlier visit, but the server sweeps a temporary account 30 minutes
-    // after its last keep-alive. When the visitor returns after that window the stored token is still
-    // structurally valid (not expired, signature good), so the session restores, yet the account
-    // behind it no longer exists. The refresh is what detects this: it fails for a deleted account and
-    // signs the dead session out, so getProfile resolves to null and we make a fresh account below.
-    // Without the refresh the page carries a token for a deleted user to the realtime server, the
-    // WebSocket is rejected (the 400), the SDK's socket never opens, and the lobby hangs forever on
+    // Verify the restored session before using it. autoLogin brings back the temporary account of an
+    // earlier visit, but the server sweeps a temporary account a while after its last keep-alive. When
+    // the visitor returns after that window the stored token is still structurally valid (not expired,
+    // signature good), so the session restores, yet the account behind it no longer exists.
+    // verifyAnonymousSession() awaits the keep-alive beat the SDK already sent for the restored
+    // session: the beat checks the account with the stored token (no cognito refresh) and signs out
+    // when the server reports it gone, so it resolves to null and we make a fresh account below.
+    // Without this check the page would carry a token for a deleted user to the realtime server, the
+    // WebSocket would be rejected (the 400), the socket would never open, and the lobby would hang on
     // "Connecting to the service...".
-    let user = await skapi.getProfile({ refreshToken: true }).catch(() => null);
+    let user = await skapi.verifyAnonymousSession().catch(() => null);
     if (user && !user.anonymous) {
         await skapi.logout();
         user = null;

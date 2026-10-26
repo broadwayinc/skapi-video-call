@@ -257,7 +257,7 @@ When the page is hosted at an address of your own, also point the `og:image` and
 | `app.js` | Everything the app does: the sign-in, the room and its link, the call, the controls, the drawing board, the chat and the files. Each part starts with a comment saying what it does. |
 | `markdown.js` | Turns a chat message into formatted text. Everything that is not formatting is shown exactly as typed, so a message can never change the page. |
 
-The `skapi-js` library is loaded from `https://cdn.jsdelivr.net/npm/skapi-js@2.2.17/dist/skapi.js`, and the colours for code blocks come from [highlight.js](https://highlightjs.org), loaded from the same CDN the first time a code block names its language.
+The `skapi-js` library is loaded from `https://cdn.jsdelivr.net/npm/skapi-js@2.2.19/dist/skapi.js`, and the colours for code blocks come from [highlight.js](https://highlightjs.org), loaded from the same CDN the first time a code block names its language.
 
 ## How it works, briefly
 
