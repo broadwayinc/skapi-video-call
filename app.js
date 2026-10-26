@@ -36,7 +36,16 @@ const me = { user_id: null, name: loadName() };
     the same account; a regular user who is logged in on this origin is logged out here first.
 */
 async function signIn() {
-    let user = await skapi.getProfile();
+    // Validate the restored session with a token refresh before using it. autoLogin brings back the
+    // temporary account of an earlier visit, but the server sweeps a temporary account 30 minutes
+    // after its last keep-alive. When the visitor returns after that window the stored token is still
+    // structurally valid (not expired, signature good), so the session restores, yet the account
+    // behind it no longer exists. The refresh is what detects this: it fails for a deleted account and
+    // signs the dead session out, so getProfile resolves to null and we make a fresh account below.
+    // Without the refresh the page carries a token for a deleted user to the realtime server, the
+    // WebSocket is rejected (the 400), the SDK's socket never opens, and the lobby hangs forever on
+    // "Connecting to the service...".
+    let user = await skapi.getProfile({ refreshToken: true }).catch(() => null);
     if (user && !user.anonymous) {
         await skapi.logout();
         user = null;
