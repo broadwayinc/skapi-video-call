@@ -188,14 +188,17 @@ Press **Leave** to end the call. Both of you return to the waiting room. If the 
 
 ![After the call](screenshots/call-ended.webp)
 
-If your page reloads or the connection drops for a moment, the call comes back on its own once both browsers are in the room again.
+If the connection drops for a moment, the call stays on the screen with **Reconnecting...** over the picture while the two browsers find each other again; the picture freezes meanwhile and the chat tells you what is happening. Only when that has not worked within about fifteen seconds does the call end. Then both of you are back in the waiting room, it says **The connection was lost**, and a new call starts by itself a few seconds later, with the chat and the drawing board as they were. If your page reloads, the call comes back on its own too, once both browsers are in the room again.
+
+The browser asks for the camera and the microphone once, when the page opens. They stay on for your whole visit, through every call, so you are not asked again.
 
 ## If something does not work
 
 | What you see | What to do |
 | --- | --- |
-| **Camera blocked. Allow it in the address bar to be seen.** | The browser was told not to use the camera. Click the camera icon in the address bar, allow it, and reload the page. |
+| **Camera blocked. Allow it in the address bar to be seen.** | The browser was told not to use the camera and the microphone. Click the camera icon in the address bar, allow them, and reload the page. The page asks once and does not ask again after a "Block". |
 | **No camera** | The device has no camera or it is in use by another program. You can still take part with your microphone, and you still see the other person. |
+| **Reconnecting...** over the picture | The connection between the two browsers dropped. Wait: it usually comes back within a few seconds. If it does not, the call ends and starts again by itself once the network is back. |
 | **Tap to turn on sound** | Press the button. The browser only plays sound after you have touched the page. |
 | **This device does not support screen sharing.** | Phones and tablets cannot share their screen from a browser. Use a desktop browser for that. |
 | **Two people are already in this call.** | A call is for two. Wait for one of them to leave, or ask for a new link. |

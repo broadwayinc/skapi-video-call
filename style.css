@@ -146,6 +146,13 @@ button:disabled {
     box-shadow: 0 0 0 3px rgba(52, 211, 153, .22);
 }
 
+/* The connection dropped and is being brought back: the dot pulses as while calling. */
+.app[data-state="incall"].reconnecting .status-dot {
+    background: var(--warn);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, .22);
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
 @keyframes pulse {
     50% {
         opacity: .45;
@@ -477,6 +484,38 @@ a.icon-btn {
     color: #fff;
     font-weight: 500;
     box-shadow: var(--shadow);
+}
+
+/* "Reconnecting..." over the stage while the SDK brings a dropped connection back. The sound pill moves down under it. */
+.reconnect-pill {
+    position: absolute;
+    top: .75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .9rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .6);
+    backdrop-filter: blur(6px);
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: var(--shadow);
+    pointer-events: none;
+}
+
+.reconnect-pill .ring {
+    width: .8em;
+    height: .8em;
+    border: 2px solid var(--surface-2);
+    border-top-color: var(--warn);
+    border-radius: 50%;
+    animation: spin .9s linear infinite;
+}
+
+.app.reconnecting .sound-pill {
+    top: 3.5rem;
 }
 
 /* The board: white paper that keeps its 16:10 shape inside the stage. */

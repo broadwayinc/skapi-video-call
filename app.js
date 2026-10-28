@@ -10,6 +10,12 @@
          accepts at once (connectRTC() on the rtc:incoming message). Nobody has to click anything.
       5. The call carries the camera and the microphone, the screen when shared, and two data channels:
          "chat" for messages and "drawing" for the shared board. Files go through rtcConnection.sendFile().
+      6. The camera and the microphone are opened once, for the preview in the waiting room, and stay open for the
+         visit. Each call sends copies of those tracks (track.clone()), so the browser asks for permission once,
+         not again for every call.
+      7. A connection that drops is not the end of the call. The SDK brings it back (an ICE restart finds a new
+         path) and the page shows "Reconnecting..." meanwhile; only when that fails is the call lost, and then a
+         new one starts after a short pause that grows with every loss in a row. The chat and the board are kept.
 
     Sections: project and sign-in, the room, the call and its tiles, controls, the drawing board, the chat, helpers.
 */
@@ -66,6 +72,7 @@ async function signIn() {
 */
 const urlParams = new URLSearchParams(location.search);
 let room = urlParams.get("room");
+const fromLink = Boolean(room);
 let host = false;
 if (!room) {
     room = randomId();
@@ -79,6 +86,9 @@ if (!room) {
 const GROUP = "room-" + room;
 let entered = host; // in the room's realtime group, visible to the others (a guest's tab remembers it entered, for reloads)
 try { if (sessionStorage.getItem("videocall:entered") === room) entered = true; } catch (err) { }
+// This tab was in the room before it reloaded. The other person may still hold a call to the old page, which is
+// dead, so this page calls first, whatever the user ids say; the other side swaps the dead call for the new one.
+let rejoining = fromLink && entered;
 
 // The address to share: this page with the room.
 function shareUrl() {
@@ -97,13 +107,26 @@ let peer = null; // { user_id, cid, name } of the person on the call
 let endedWith = null; // user id of the person a call was ended with on purpose: no automatic call to them again
 let leftByMe = false;
 let cancelled = false;
+let rangOut = false; // the call rang and nobody picked up: the signaling did not get through; ended as lost
+let replaced = false; // the call makes room for a new one with the same person (their page reloaded); ended as lost
+let lostWith = null; // user id of the person the last call was lost with: the chat and the board are kept for the next call with them
+let lostStreak = 0; // lost calls in a row; every one waits a little longer before the next try
+let holdUntil = 0; // no new call before this time
+let holdTimer = null;
+let boardWasOpen = false; // the board was open when the call was lost: opened again once the next call is up
+let keptLog = false; // the current call went on from a lost one: its chat log was not cleared
+let socketDown = false; // the realtime connection to the service dropped and is being brought back
+const endWaiters = []; // resolved by the next endCall()
 let lobbyNote = "";
 let attempt = 0; // counts calls started and ended; a step that outlives its call sees the number change and stops
 
 function onRealtime(rt) {
     if (rt.type === "notice") {
         if (rt.code === "USER_JOINED" && rt.sender !== me.user_id) {
-            peers.set(rt.sender_cid, { user_id: rt.sender, name: null });
+            // a person who was here already (their realtime connection reopened, or their page reloaded) keeps their name
+            const known = [...peers.values()].find((p) => p.user_id === rt.sender);
+            const name = known?.name || (peer && peer.user_id === rt.sender ? peer.name : null);
+            peers.set(rt.sender_cid, { user_id: rt.sender, name });
             reconcile();
         } else if (rt.code === "USER_LEFT" || rt.code === "USER_DISCONNECTED") {
             peers.delete(rt.sender_cid);
@@ -122,22 +145,79 @@ function onRealtime(rt) {
         endCall();
     }
 
-    if (rt.type === "error") {
-        // "Connection ID ... is not connected" is a signal sent to someone who already left; nothing to show
-        if (/is not connected/i.test(String(rt.message))) console.warn(rt.message);
-        else showError(String(rt.message || "The realtime connection failed."));
+    /*
+        The realtime connection to the service, which carries who is in the room and the call setup. The SDK
+        reopens it by itself when it drops, with a growing wait between tries. A call that is up does not depend
+        on it: the video, the voice, the chat and the board run straight between the two browsers.
+    */
+    if (rt.type === "reconnect") {
+        if (!socketDown) {
+            socketDown = true;
+            if (appState() === "incall") addSystemLine("The connection to the service was lost. Reconnecting... The call goes on.");
+            else if (appState() === "lobby") setLobbyStatus("The connection to the service was lost. Reconnecting...", true, true);
+        }
+        return;
     }
+    if (rt.type === "success" && socketDown) {
+        socketDown = false;
+        if (appState() === "incall") addSystemLine("Connected to the service again.");
+        // who is here may have changed meanwhile; the list is read again rather than trusted
+        if (entered) listRoom().then(reconcile).catch((err) => console.warn(err.message));
+        return;
+    }
+
+    if (rt.type === "error") {
+        const message = String(rt.message || "");
+        // A signal sent to a connection that is gone. The service only learns that a connection died when it
+        // tries to reach it, so a person whose network dropped stays listed under their old connection until
+        // then, next to the new one they came back with. Their old entry goes here; a call that was ringing it
+        // is given up and dialled again to the one that is alive.
+        const dead = /Connection ID "([^"]+)" is not connected/.exec(message);
+        if (dead) {
+            const cid = "cid:" + dead[1];
+            peers.delete(cid);
+            if (peer && peer.cid === cid && call) {
+                const c = call;
+                call = null;
+                rangOut = true; // ended as lost: tried again
+                c.hangup();
+            }
+            console.warn(message);
+            return;
+        }
+        // a dropped connection is reported above while the SDK reopens it; nothing to show for it
+        if (/is not connected|unexpected close|connection error|connection failed/i.test(message)) console.warn(message);
+        else showError(message || "The realtime connection failed.");
+    }
+}
+
+/*
+    The other people in the room, one entry per person. The room lists connections, and a person can hold two for
+    a while: after their network dropped, their old connection stays listed until the service tries to reach it,
+    next to the new one they came back with. Counting connections would call the room full. The newest connection
+    of each person is the one to call; an old one that turns out to be dead is removed on the error it causes.
+*/
+function othersByPerson() {
+    const people = new Map();
+    for (const [cid, p] of peers) {
+        if (p.user_id !== me.user_id) people.set(p.user_id, [cid, p]); // the last one set wins: the newest connection
+    }
+    return [...people.values()];
 }
 
 /*
     Decides what to do with the people in the room. Runs whenever that changes.
     Two people, no call: the one with the smaller user id calls, the other waits for the call.
+    After a lost call there is a short pause first, longer with every loss in a row (1, 2, 4, 8 seconds), so a
+    connection that keeps failing is not hammered.
 */
 function reconcile() {
     if (!entered || rtc || call || receiver || appState() === "calling") {
         return;
     }
-    const others = [...peers.entries()].filter(([, p]) => p.user_id !== me.user_id);
+    const first = rejoining; // one decision only: a page back from a reload calls first, then the usual rule applies
+    rejoining = false;
+    const others = othersByPerson();
     $("btnJoin").hidden = true;
     $("btnCancel").hidden = true;
 
@@ -165,7 +245,15 @@ function reconcile() {
         $("btnJoin").hidden = false;
         return;
     }
-    if (me.user_id < p.user_id) {
+    const wait = holdUntil - Date.now();
+    if (wait > 0) {
+        setLobbyStatus(`${name} is here. Trying again in a moment...`, false, true);
+        setStatus("Trying again...");
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(reconcile, wait);
+        return;
+    }
+    if (me.user_id < p.user_id || first) {
         callPeer(cid, p).catch((err) => { showError(err.message); setState("lobby"); });
     } else {
         setLobbyStatus(`${name} is here. Connecting...`, false, true);
@@ -185,18 +273,40 @@ const remoteAudioStream = new MediaStream();
 let announced = false; // "<name> joined" written in the chat once per call
 
 /*
-    What this side sends: the camera and the microphone the preview could open. What it could not open is
-    asked for with `receive`, so the other side's camera and voice arrive all the same.
+    What this side sends: copies of the camera and microphone tracks the preview holds. The connection gets its
+    own tracks (track.clone(), no new capture, so no new permission prompt) and stops them when the call ends;
+    the preview keeps the originals for the next call. What the preview could not open is asked for with
+    `receive`, so the other side's camera and voice arrive all the same.
 */
 async function mediaOptions() {
     await previewReady;
     const media = {};
-    if (preview.audio) media.audio = true;
-    if (preview.video) media.video = true;
     const receive = {};
-    if (!preview.audio) receive.audio = true;
-    if (!preview.video) receive.video = true;
+    const audio = preview.stream?.getAudioTracks().find((t) => t.readyState === "live");
+    const video = preview.stream?.getVideoTracks().find((t) => t.readyState === "live");
+    if (audio) {
+        media.audio = audio.clone();
+        media.audio.enabled = prefs.mic;
+    } else {
+        receive.audio = true;
+    }
+    if (video) {
+        media.video = video.clone();
+        media.video.enabled = prefs.camera;
+    } else {
+        receive.video = true;
+    }
     return { media, receive };
+}
+
+// The copies made for a call that did not happen.
+function dropMedia(options) {
+    for (const t of Object.values(options?.media || {})) t.stop?.();
+}
+
+// Events of a call go to onRTC while that call is the current one; a late event of an earlier call is dropped.
+function rtcEventsFor(my) {
+    return (e) => { if (attempt === my) onRTC(e); };
 }
 
 async function callPeer(cid, p) {
@@ -205,14 +315,20 @@ async function callPeer(cid, p) {
     setLobbyStatus(`Calling ${peer.name}...`, false, true);
 
     const options = await mediaOptions();
-    if (attempt !== my) return; // cancelled while the camera was opening
-    stopPreview(); // the connection opens the camera itself
-    const connector = await skapi.connectRTC({
-        cid,
-        ...options,
-        channels: CHANNELS,
-        meta: { kind: "video call", room, name: me.name },
-    }, onRTC);
+    if (attempt !== my) { dropMedia(options); return; } // cancelled while the camera was opening
+    let connector;
+    try {
+        connector = await skapi.connectRTC({
+            cid,
+            ...options,
+            channels: CHANNELS,
+            meta: { kind: "video call", room, name: me.name },
+            ringTimeout: 20000, // a call nobody picks up (the invitation did not get through) ends and is tried again
+        }, rtcEventsFor(my));
+    } catch (err) {
+        dropMedia(options);
+        throw err;
+    }
     if (attempt !== my) { connector.hangup(); return; }
     call = connector;
     const connection = await connector.connection; // resolves when the other side picks up
@@ -223,11 +339,32 @@ async function callPeer(cid, p) {
     refreshLocalTiles();
 }
 
+// Resolves with the next end of a call, or after `ms` when none comes.
+function waitForEnd(ms) {
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        endWaiters.push(() => { clearTimeout(timer); resolve(); });
+    });
+}
+
 // Every call in this room is accepted at once: having the link is the invitation.
 async function acceptCall(rt) {
-    if (rtc && peer && rt.sender === peer.user_id) {
-        // the same person calls again: they reloaded their page, and the connection to it is dead
-        rtc.hangup(); // reports the old connection as closed, which ends it here
+    if (peer && rt.sender === peer.user_id) {
+        if (rtc) {
+            // the same person calls again: their page reloaded, and the connection to the old one is dead
+            replaced = true;
+            await rtc.hangup(); // ends the call here (as lost: the chat log stays), then the new one is taken
+        } else if (call && rt.sender < me.user_id) {
+            // both sides called at once (a page back from a reload calls first): the smaller user id's call wins,
+            // as always, so this side gives its own up and takes theirs; the other side refuses this side's
+            replaced = true;
+            const c = call;
+            call = null;
+            const ended = waitForEnd(1500);
+            c.hangup();
+            await ended;
+            if (appState() === "calling") endCall();
+        }
     }
     if (rtc || call || receiver || appState() === "calling") {
         rt.hangup(); // busy
@@ -239,9 +376,14 @@ async function acceptCall(rt) {
     setLobbyStatus(`${peer.name} is calling. Connecting...`, false, true);
 
     const options = await mediaOptions();
-    if (attempt !== my) return;
-    stopPreview();
-    const connection = await rt.connectRTC(options, onRTC); // null when the caller hung up meanwhile
+    if (attempt !== my) { dropMedia(options); return; }
+    let connection;
+    try {
+        connection = await rt.connectRTC(options, rtcEventsFor(my)); // null when the caller hung up meanwhile
+    } catch (err) {
+        dropMedia(options);
+        throw err;
+    }
     if (attempt !== my) { connection?.hangup?.(); return; }
     receiver = null;
     if (!connection) { endCall(); return; }
@@ -264,11 +406,21 @@ function beginCall(who) {
     peer = who;
     leftByMe = false;
     cancelled = false;
+    rangOut = false;
+    replaced = false;
     announced = false;
     camState.me = true; camState.them = true;
     micState.me = true; micState.them = true;
+    clearTimeout(holdTimer);
     setPeerName(peer.name);
-    clearLog();
+    // a call with the person the last one was lost with goes on where it stopped: the chat log and the board stay
+    keptLog = lostWith !== null && lostWith === who.user_id;
+    if (!keptLog) {
+        clearLog();
+        clearBoard(false);
+        boardWasOpen = false;
+    }
+    lostWith = null;
     setState("calling");
     setStatus(`Connecting to ${peer.name}...`);
     $("btnJoin").hidden = true;
@@ -300,33 +452,52 @@ function leaveCall() {
 }
 
 /*
-    After a call, however it ended: back to the waiting room with the camera preview.
+    After a call, however it ended: back to the waiting room, where the camera preview is still running.
     A call ended on purpose (Leave, on either side) is not started again by itself: the person who left gets a
-    button. A call that was lost (`lost`: the connection dropped, a page was reloaded) may start again by itself.
+    button. A call that was lost (`lost`: the connection could not be brought back, nobody picked up, a page was
+    reloaded) starts again by itself, after a pause that grows with every loss in a row; the chat and the board
+    are kept for it.
 */
 function endCall(lost) {
     const name = peer ? peer.name : "Guest";
     const mine = leftByMe;
     const gaveUp = cancelled;
+    const noAnswer = rangOut;
+    const swapped = replaced;
+    lost = Boolean(lost || noAnswer || swapped);
     const gone = peer && !peers.has(peer.cid); // their page is closed or reloading
     if (peer && !lost) endedWith = peer.user_id;
+    lostWith = lost && peer ? peer.user_id : null;
+    if (lost) boardWasOpen = boardWasOpen || boardState.open;
     attempt++;
-    rtc = null; call = null; receiver = null; peer = null; leftByMe = false; cancelled = false;
+    rtc = null; call = null; receiver = null; peer = null; leftByMe = false; cancelled = false; rangOut = false; replaced = false;
     channels.chat = null; channels.drawing = null;
 
     for (const view of VIEWS) hideTile(view);
     for (const t of remoteAudioStream.getTracks()) remoteAudioStream.removeTrack(t);
     $("btnSound").hidden = true;
+    setReconnecting(false);
     closeBoard(false);
-    clearBoard(false);
+    if (!lost) clearBoard(false);
     stage.view = null;
     renderStage();
     exitChatOverlay();
 
-    lobbyNote = gaveUp ? "Call cancelled." : mine ? "You left the call." : lost && !gone ? "The connection was lost." : `${name} left the call.`;
+    if (lost && !swapped && !gone) {
+        lostStreak++;
+        holdUntil = Date.now() + Math.min(8000, 1000 * 2 ** (lostStreak - 1));
+    }
+    lobbyNote = swapped ? "" : gaveUp ? "Call cancelled." : mine ? "You left the call." : noAnswer ? "The call did not connect." : lost && !gone ? "The connection was lost." : `${name} left the call.`;
     setState("lobby");
-    previewReady = startPreview();
+    if (!preview.stream) previewReady = startPreview(); // only when the preview is gone (a device was unplugged); it is normally still running
+    for (const resolve of endWaiters.splice(0)) resolve();
     reconcile();
+}
+
+// The pill over the stage and the pulsing dot while the SDK brings a dropped connection back.
+function setReconnecting(on) {
+    $("app").classList.toggle("reconnecting", on);
+    $("reconnectPill").hidden = !on;
 }
 
 /*
@@ -372,11 +543,42 @@ function onRTC(e) {
                     setState("incall");
                     openChat(wideScreen.matches, true);
                 }
+                if (e.state === "connected") lostStreak = 0; // a call that is up again starts the pauses over
                 setStatus(e.state === "connected" ? `In a call with ${peer?.name || "Guest"}` : "Connecting...");
                 refreshLocalTiles();
-            } else if (["disconnected", "failed", "closed"].includes(e.state)) {
-                endCall(e.state !== "closed"); // "closed" is a hang-up, on either side; the others are a lost connection
+            } else if (e.state === "closed") {
+                endCall(false); // a hang-up, on either side. A dropped connection comes as reconnecting / lost below.
             }
+            break;
+
+        /*
+            The connection dropped: no packets for a few seconds. The SDK waits for the browser to bring it back,
+            then restarts ICE (a new path, as after a change of network), and gives up when nothing helps within
+            its deadline. The call stays on the screen meanwhile; the picture freezes.
+        */
+        case "reconnecting":
+            setReconnecting(true);
+            setStatus(`Reconnecting to ${peer?.name || "Guest"}...`);
+            addSystemLine("The connection dropped. Reconnecting...");
+            break;
+
+        case "reconnected":
+            setReconnecting(false);
+            setStatus(`In a call with ${peer?.name || "Guest"}`);
+            addSystemLine("Connected again.");
+            break;
+
+        case "lost":
+            endCall(true); // the call is closed right after this; a new one starts after a short pause
+            break;
+
+        case "cidchange":
+            // the other side's realtime connection reopened and got a new id; the call goes on under it
+            if (peer) peer.cid = e.cid;
+            break;
+
+        case "ringtimeout":
+            rangOut = true; // the call closes right after this; ended as lost, so it is tried again
             break;
 
         case "open":
@@ -386,6 +588,11 @@ function onRTC(e) {
                 sendState();
             } else if (e.label === "drawing") {
                 channels.drawing = e.target;
+                if (boardWasOpen) {
+                    // the board was open when the last call was lost: both sides kept their drawing, so it is opened again
+                    boardWasOpen = false;
+                    openBoard(true);
+                }
             }
             break;
 
@@ -596,7 +803,7 @@ $("btnChat").addEventListener("click", () => openChat(!chatOpen()));
 $("btnChatClose").addEventListener("click", () => openChat(false));
 $("btnLeave").addEventListener("click", leaveCall);
 $("btnJoin").addEventListener("click", () => {
-    const entry = [...peers.entries()].find(([, p]) => p.user_id !== me.user_id);
+    const entry = othersByPerson()[0];
     if (!entry) return;
     endedWith = null;
     callPeer(entry[0], entry[1]).catch((err) => { showError(err.message); setState("lobby"); });
@@ -673,7 +880,7 @@ function updateBar() {
     brd.querySelector(".ctl-label").textContent = boardState.open ? "Close board" : "Drawing board";
 }
 
-/* ---- The camera preview in the waiting room ---- */
+/* ---- The camera preview in the waiting room: the one opening of the camera and the microphone ---- */
 
 const preview = { stream: null, video: false, audio: false, pending: null, error: null };
 let previewReady = Promise.resolve();
@@ -686,6 +893,12 @@ function startPreview() {
     return preview.pending;
 }
 
+/*
+    One request for both devices, which is one permission prompt. "Block" ends it there: asking again for the
+    camera alone and then the microphone alone would be two more prompts in a browser that asks per request. A
+    device that is missing or in use by another program is another matter: then the other one is asked for by
+    itself. The stream stays open for the visit; every call sends copies of its tracks.
+*/
 async function openPreview() {
     if (preview.stream) return;
     const attempts = [{ video: true, audio: true }, { video: true }, { audio: true }];
@@ -696,12 +909,13 @@ async function openPreview() {
             break;
         } catch (err) {
             error = err;
-            if (err.name === "NotAllowedError" && constraints.audio && !constraints.video) break;
+            if (err.name === "NotAllowedError" || err.name === "SecurityError") break;
         }
     }
     preview.video = Boolean(preview.stream?.getVideoTracks().length);
     preview.audio = Boolean(preview.stream?.getAudioTracks().length);
     preview.error = preview.stream ? null : error;
+    for (const t of preview.stream?.getTracks() || []) t.addEventListener("ended", () => previewTrackEnded(t));
 
     const video = $("previewVideo");
     video.srcObject = preview.video ? preview.stream : null;
@@ -709,28 +923,36 @@ async function openPreview() {
     renderPrefs();
 }
 
+// A preview track ended on its own: the camera was unplugged, or the browser took the device away. The preview
+// shows what is left; a call that is up keeps its own copy of the track until that one ends too.
+function previewTrackEnded(track) {
+    if (!preview.stream) return;
+    preview.stream.removeTrack(track);
+    preview.video = preview.stream.getVideoTracks().length > 0;
+    preview.audio = preview.stream.getAudioTracks().length > 0;
+    if (!preview.video) $("previewVideo").srcObject = null;
+    if (!preview.video && !preview.audio) preview.stream = null; // opened again after the call, which asks once more
+    renderPrefs();
+}
+
 // What the preview frame shows over the video: nothing, "Camera off", or why there is no camera.
 function renderPreviewFrame() {
     const off = $("previewOff"), text = $("previewOffText");
-    if (!preview.stream) return; // stopped: the frame says "Connecting..."
+    const blocked = preview.error?.name === "NotAllowedError" || preview.error?.name === "SecurityError";
+    if (!preview.stream) {
+        // nothing could be opened: blocked, or no device at all. The frame says so instead of "Starting the camera..." for ever.
+        if (!preview.error) return; // still opening
+        off.hidden = false;
+        text.textContent = blocked ? "Camera blocked. Allow it in the address bar to be seen." : "No camera";
+        return;
+    }
     if (!preview.video) {
         off.hidden = false;
-        text.textContent = preview.error?.name === "NotAllowedError" ? "Camera blocked. Allow it in the address bar to be seen." : "No camera";
+        text.textContent = blocked ? "Camera blocked. Allow it in the address bar to be seen." : "No camera";
         return;
     }
     off.hidden = prefs.camera;
     text.textContent = "Camera off";
-}
-
-// The preview goes away when the call opens the camera itself; the frame says what is happening meanwhile.
-function stopPreview() {
-    if (preview.stream) {
-        for (const t of preview.stream.getTracks()) t.stop();
-        preview.stream = null;
-    }
-    $("previewVideo").srcObject = null;
-    $("previewOff").hidden = false;
-    $("previewOffText").textContent = "Connecting...";
 }
 
 /* ---------------------------------------------------------------------------------------------------
@@ -916,7 +1138,7 @@ function onChatMessage(data) {
             const before = peer?.name;
             setPeerName(name);
             if (peer && peers.has(peer.cid)) peers.get(peer.cid).name = name; // the waiting room uses it after the call
-            if (!announced) { announced = true; addSystemLine(`${name} joined the call.`); }
+            if (!announced) { announced = true; addSystemLine(keptLog ? `${name} is back.` : `${name} joined the call.`); }
             else if (before !== name) addSystemLine(`${before} is now ${name}.`);
             break;
         }
@@ -1391,14 +1613,17 @@ function showError(message) {
 
 $("shareInput").value = shareUrl();
 
-// Who else is in the room, from the realtime group's list. Returns how many others there are.
+// Who else is in the room, from the realtime group's list. Returns how many other people there are (a person with
+// two connections listed counts once). Names already known stay known.
 async function listRoom() {
     const res = await skapi.getRealtimeUsers({ group: GROUP });
+    const names = new Map([...peers.values()].filter((p) => p.name).map((p) => [p.user_id, p.name]));
+    if (peer) names.set(peer.user_id, peer.name);
     peers.clear();
     for (const p of res.list) {
-        if (p.user_id !== me.user_id) peers.set(p.cid, { user_id: p.user_id, name: null });
+        if (p.user_id !== me.user_id) peers.set(p.cid, { user_id: p.user_id, name: names.get(p.user_id) || null });
     }
-    return peers.size;
+    return othersByPerson().length;
 }
 
 // The guest's Enter button: join the room's group, which makes this visitor visible, and connect.

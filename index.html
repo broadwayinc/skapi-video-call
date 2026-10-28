@@ -25,7 +25,7 @@
     <meta name="twitter:image" content="https://raw.githubusercontent.com/broadwayinc/skapi-video-call/master/og-image.png">
 
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.19/dist/skapi.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.21/dist/skapi.js"></script>
     <script src="markdown.js"></script>
     <script src="app.js" defer></script>
     <script type="application/ld+json">
@@ -176,6 +176,11 @@
                         </div>
 
                         <div class="stage-caption" id="stageCaption"></div>
+
+                        <!-- Shown while the SDK brings a dropped connection back; the call stays on the screen. -->
+                        <div class="reconnect-pill" id="reconnectPill" role="status" hidden>
+                            <span class="ring" aria-hidden="true"></span><span>Reconnecting...</span>
+                        </div>
 
                         <button type="button" class="sound-pill" id="btnSound" hidden>
                             <svg class="icon"><use href="#i-volume"/></svg><span>Tap to turn on sound</span>
