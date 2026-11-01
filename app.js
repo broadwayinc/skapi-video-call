@@ -266,6 +266,8 @@ function reconcile() {
    --------------------------------------------------------------------------------------------------- */
 
 const CHANNELS = [{ protocol: "chat", ordered: true }, { protocol: "drawing", ordered: true }];
+// On a thin connection the browser trims the lower priority first: the picture gets blurry before the voice breaks up.
+const ENCODING = { audio: { priority: "high" }, video: { priority: "low" } };
 const channels = { chat: null, drawing: null }; // the data channels, once open
 const camState = { me: true, them: true };
 const micState = { me: true, them: true };
@@ -321,6 +323,7 @@ async function callPeer(cid, p) {
         connector = await skapi.connectRTC({
             cid,
             ...options,
+            encoding: ENCODING,
             channels: CHANNELS,
             meta: { kind: "video call", room, name: me.name },
             ringTimeout: 20000, // a call nobody picks up (the invitation did not get through) ends and is tried again
@@ -379,7 +382,7 @@ async function acceptCall(rt) {
     if (attempt !== my) { dropMedia(options); return; }
     let connection;
     try {
-        connection = await rt.connectRTC(options, rtcEventsFor(my)); // null when the caller hung up meanwhile
+        connection = await rt.connectRTC({ ...options, encoding: ENCODING }, rtcEventsFor(my)); // null when the caller hung up meanwhile
     } catch (err) {
         dropMedia(options);
         throw err;
