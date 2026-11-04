@@ -16,6 +16,9 @@
       7. A connection that drops is not the end of the call. The SDK brings it back (an ICE restart finds a new
          path) and the page shows "Reconnecting..." meanwhile; only when that fails is the call lost, and then a
          new one starts after a short pause that grows with every loss in a row. The chat and the board are kept.
+      8. A temporary account is deleted half an hour after its last sign of life. A phone that froze the page in the
+         background for longer comes back to a deleted account; the page then makes a new one and returns to the room
+         by itself (renewAccount()).
 
     Sections: project and sign-in, the room, the call and its tiles, controls, the drawing board, the chat, helpers.
 */
@@ -118,6 +121,8 @@ let keptLog = false; // the current call went on from a lost one: its chat log w
 let socketDown = false; // the realtime connection to the service dropped and is being brought back
 const endWaiters = []; // resolved by the next endCall()
 let lobbyNote = "";
+let started = false; // signed in and connected once: from then on a lost session is renewed, see renewAccount()
+let renewing = null; // the renewal in progress
 let attempt = 0; // counts calls started and ended; a step that outlives its call sees the number change and stops
 
 function onRealtime(rt) {
@@ -185,8 +190,9 @@ function onRealtime(rt) {
             console.warn(message);
             return;
         }
-        // a dropped connection is reported above while the SDK reopens it; nothing to show for it
-        if (/is not connected|unexpected close|connection error|connection failed/i.test(message)) console.warn(message);
+        // a dropped connection is reported above while the SDK reopens it, and a session that ended is renewed
+        // (renewAccount()); nothing to show for either
+        if (/is not connected|unexpected close|connection error|connection failed|login is required/i.test(message)) console.warn(message);
         else showError(message || "The realtime connection failed.");
     }
 }
@@ -215,6 +221,7 @@ function reconcile() {
     if (!entered || rtc || call || receiver || appState() === "calling") {
         return;
     }
+    if (!skapi.user) return; // signed out: renewAccount() makes a new account and comes back here
     const first = rejoining; // one decision only: a page back from a reload calls first, then the usual rule applies
     rejoining = false;
     const others = othersByPerson();
@@ -550,7 +557,11 @@ function onRTC(e) {
                 setStatus(e.state === "connected" ? `In a call with ${peer?.name || "Guest"}` : "Connecting...");
                 refreshLocalTiles();
             } else if (e.state === "closed") {
-                endCall(false); // a hang-up, on either side. A dropped connection comes as reconnecting / lost below.
+                // A hang-up, on either side. A dropped connection comes as reconnecting / lost below.
+                // A call refused while it still rang was refused for being busy (every call here is answered at once):
+                // the other side is still on a call it is bringing back, for one. That is tried again, not a goodbye.
+                if (call && !rtc && !cancelled) rangOut = true;
+                endCall(false);
             }
             break;
 
@@ -1636,6 +1647,7 @@ async function enterRoom() {
     $("btnEnter").hidden = true;
     setLobbyStatus("Entering...", false, true);
     try {
+        if (renewing) await renewing; // a new account is being made: enter on it
         await skapi.joinRealtime({ group: GROUP });
         try { sessionStorage.setItem("videocall:entered", room); } catch (err) { }
         await listRoom();
@@ -1649,6 +1661,88 @@ async function enterRoom() {
 
 $("btnEnter").addEventListener("click", () => { enterRoom(); });
 
+// The realtime connection and the room: the group joined (or, for a guest, a look at who is there), the people listed.
+async function connectRoom() {
+    await skapi.connectRealtime(onRealtime);
+    if (entered) {
+        await skapi.joinRealtime({ group: GROUP });
+        await listRoom();
+        reconcile();
+    } else {
+        // a guest looks in first and enters when ready
+        const others = await listRoom();
+        peers.clear(); // not in the group yet, so no notices: the list is read again on entering
+        setLobbyStatus(others === 0 ? "Nobody else is here yet. Enter and wait for them." : others === 1 ? "Someone is waiting for you. Enter when you are ready." : "Two people are already in this call.");
+        setStatus("Ready to enter");
+        $("btnEnter").hidden = false;
+    }
+}
+
+function anonymousLoginOff(err) {
+    if (!/anonymous login is not enabled/i.test(err?.message || "")) return false;
+    showToast("Anonymous login is turned off for this project.", {
+        error: true, sticky: true,
+        detail: "Turn on Anonymous Login in the project's settings at www.skapi.com, then reload this page.",
+    });
+    return true;
+}
+
+/*
+    The session ended without the visitor leaving: the temporary account was deleted while the page was away (a phone
+    keeps a background page frozen, so it sends no sign of life, and the account goes half an hour later), or the
+    service refused to renew the sign-in. The SDK signs the page out and says so through skapi.onLogin. Without an
+    account the realtime connection cannot open, so the room would look empty and Enter would fail.
+
+    The page makes a new temporary account and goes back into the room on it, the way it does on a reload: the call
+    that was up (long dead after half an hour away) ends as lost, so the chat and the board are kept for the next one,
+    and the other person sees this visitor leave and come back. When the service cannot be reached (the network is
+    not back yet) it tries again, the wait growing from 2 to 30 seconds, and at once when the network returns.
+*/
+skapi.onLogin = (user) => {
+    if (!user && started && !renewing) renewAccount();
+};
+
+function renewAccount() {
+    renewing = (async () => {
+        console.warn("The session ended. Making a new temporary account.");
+        lobbyNote = "";
+        socketDown = false;
+        if (rtc || call || receiver) replaced = true; // ends the call as lost: the next one goes on where it stopped
+        await skapi.closeRealtime().catch((err) => console.warn(err.message));
+        if (appState() === "incall" || appState() === "calling") endCall(true);
+        peers.clear();
+        $("btnEnter").hidden = true;
+        $("btnJoin").hidden = true;
+        setLobbyStatus("Your session expired while you were away. Reconnecting...", false, true);
+        setStatus("Reconnecting...");
+        let wait = 2000;
+        for (;;) {
+            try {
+                const user = skapi.user || await skapi.anonymousLogin();
+                me.user_id = user.user_id;
+                await connectRoom();
+                return;
+            } catch (err) {
+                if (anonymousLoginOff(err)) {
+                    setStatus("Could not start");
+                    setLobbyStatus("Could not connect to the service.", true);
+                    return;
+                }
+                console.warn("renewAccount:", err?.message || err);
+                await skapi.closeRealtime().catch(() => null);
+                setLobbyStatus("Could not reach the service. Trying again...", true, true);
+                await new Promise((resolve) => {
+                    const done = () => { clearTimeout(timer); window.removeEventListener("online", done); resolve(); };
+                    const timer = setTimeout(done, wait);
+                    window.addEventListener("online", done);
+                });
+                wait = Math.min(30000, wait * 2);
+            }
+        }
+    })().finally(() => { renewing = null; });
+    return renewing;
+}
+
 async function main() {
     try {
         // The camera does not depend on the account: it opens right away, while the sign-in runs.
@@ -1660,32 +1754,13 @@ async function main() {
         me.user_id = user.user_id;
         setState("lobby");
         setStatus("Connecting...");
-
-        await skapi.connectRealtime(onRealtime);
-        if (entered) {
-            await skapi.joinRealtime({ group: GROUP });
-            await listRoom();
-            reconcile();
-        } else {
-            // a guest looks in first and enters when ready
-            const others = await listRoom();
-            peers.clear(); // not in the group yet, so no notices: the list is read again on entering
-            setLobbyStatus(others === 0 ? "Nobody else is here yet. Enter and wait for them." : others === 1 ? "Someone is waiting for you. Enter when you are ready." : "Two people are already in this call.");
-            setStatus("Ready to enter");
-            $("btnEnter").hidden = false;
-        }
+        await connectRoom();
+        started = true;
     } catch (err) {
         console.error(err);
         setStatus("Could not start");
         setLobbyStatus("Could not connect to the service. Reload the page to try again.", true);
-        if (/anonymous login is not enabled/i.test(err?.message || "")) {
-            showToast("Anonymous login is turned off for this project.", {
-                error: true, sticky: true,
-                detail: "Turn on Anonymous Login in the project's settings at www.skapi.com, then reload this page.",
-            });
-        } else {
-            showToast(err?.message || String(err), { error: true, sticky: true });
-        }
+        if (!anonymousLoginOff(err)) showToast(err?.message || String(err), { error: true, sticky: true });
     }
 }
 
