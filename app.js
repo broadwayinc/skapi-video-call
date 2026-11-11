@@ -483,6 +483,7 @@ function endCall(lost) {
     rtc = null; call = null; receiver = null; peer = null; leftByMe = false; cancelled = false; rangOut = false; replaced = false;
     channels.chat = null; channels.drawing = null;
 
+    navEnd();
     for (const view of VIEWS) hideTile(view);
     for (const t of remoteAudioStream.getTracks()) remoteAudioStream.removeTrack(t);
     $("btnSound").hidden = true;
@@ -637,7 +638,7 @@ const tiles = {};
 for (const el of document.querySelectorAll(".tile")) {
     const view = el.dataset.view;
     tiles[view] = { view, el, video: el.querySelector("video"), canvas: el.querySelector("canvas"), name: el.querySelector(".tile-name"), stream: null, shown: false };
-    el.addEventListener("click", () => { stage.view = view; renderStage(); });
+    el.addEventListener("click", () => showOnStage(view));
 }
 const stage = { view: null };
 const STAGE_ORDER = ["them-screen", "board", "them-camera", "me-screen", "me-camera"];
@@ -714,10 +715,11 @@ function refreshLocalTiles() {
     if (screen.length) showTile("me-screen", streamFor("me-screen", screen));
     else hideTile("me-screen");
 
-    micState.me = microphone.some((t) => t.enabled);
-    camState.me = camera.some((t) => t.enabled);
-    $("btnMic").hidden = !microphone.length;
-    $("btnCamera").hidden = !camera.length;
+    // with no track (the phone took the device away in the background) the visitor's own choice is kept for its return
+    if (microphone.length) micState.me = microphone.some((t) => t.enabled);
+    if (camera.length) camState.me = camera.some((t) => t.enabled);
+    $("btnMic").hidden = !microphone.length && !preview.hadAudio;
+    $("btnCamera").hidden = !camera.length && !preview.hadVideo;
     updateBar();
     renderBadges();
 }
@@ -769,6 +771,7 @@ const coarsePointer = window.matchMedia("(pointer: coarse)");
 
 $("btnMic").addEventListener("click", () => {
     if (!rtc) return;
+    if (!rtc.tracks("microphone").length) { micState.me = true; restoreDevices(); return; } // the device went away: bring it back
     const on = rtc.tracks("microphone").some((t) => t.enabled);
     rtc.mute({ audio: on }); // mute() keeps the track on the call and sends silence while it is paused
     micState.me = !on;
@@ -779,6 +782,7 @@ $("btnMic").addEventListener("click", () => {
 
 $("btnCamera").addEventListener("click", () => {
     if (!rtc) return;
+    if (!rtc.tracks("camera").length) { camState.me = true; restoreDevices(); return; } // the device went away: bring it back
     const on = rtc.tracks("camera").some((t) => t.enabled);
     rtc.mute({ video: on });
     camState.me = !on;
@@ -809,12 +813,105 @@ $("btnScreen").addEventListener("click", async () => {
 
 $("btnBoard").addEventListener("click", () => {
     if (!rtc) return;
-    if (boardState.open) closeBoard(true);
-    else openBoard(true);
+    if (boardState.open) closeBoardByUser();
+    else { remember(); openBoard(true); }
 });
 
-$("btnChat").addEventListener("click", () => openChat(!chatOpen()));
-$("btnChatClose").addEventListener("click", () => openChat(false));
+$("btnChat").addEventListener("click", () => {
+    if (chatOpen()) closeChatByUser();
+    else { remember(); openChat(true); }
+});
+$("btnChatClose").addEventListener("click", closeChatByUser);
+
+/*
+    The back button during the call. Every step the visitor takes on the call screen (opening the chat, opening the
+    board, putting another picture on the stage) is remembered with an entry in the browser's history, so Back
+    returns to the screen as it was before that step: on a phone, Back closes the chat that covers the call. Under
+    those entries lies one more, put there when the call started; Back past the last step lands on it, and the page
+    asks whether to leave the call instead of leaving the page. Changes the other side makes (it opens the board,
+    starts sharing its screen) are not steps of this visitor and add nothing.
+*/
+const nav = { stack: [], guarded: false, ignore: 0, asking: false };
+
+function screenState() {
+    return { chat: chatOpen(), board: boardState.open, view: stage.view };
+}
+
+// Called before a step: the screen as it is now becomes the place Back returns to.
+function remember() {
+    if (!nav.guarded || appState() !== "incall") return;
+    nav.stack.push(screenState());
+    history.pushState({ videocall: "step" }, "");
+}
+
+function restoreScreen(s) {
+    openChat(s.chat, true);
+    if (s.board !== boardState.open) {
+        if (s.board) openBoard(true);
+        else closeBoard(true);
+    }
+    if (s.view && tiles[s.view]?.shown) stage.view = s.view;
+    else pickStage();
+    renderStage();
+}
+
+// A tile on the stage, as a step of its own.
+function showOnStage(view) {
+    if (stage.view === view) return;
+    remember();
+    stage.view = view;
+    renderStage();
+}
+
+// Closing what the last step opened is the same as going back; anything else closes in place.
+function closeChatByUser() {
+    const last = nav.stack[nav.stack.length - 1];
+    if (last && !last.chat && chatOpen()) history.back();
+    else openChat(false);
+}
+
+function closeBoardByUser() {
+    const last = nav.stack[nav.stack.length - 1];
+    if (last && !last.board && boardState.open) history.back();
+    else closeBoard(true);
+}
+
+// The call screen appears: the entry Back lands on before leaving.
+function navStart() {
+    if (nav.guarded) return;
+    nav.stack = [];
+    nav.guarded = true;
+    history.pushState({ videocall: "call" }, "");
+}
+
+// The call is over: the entries it added are taken off, so Back in the waiting room leaves the page as usual.
+function navEnd() {
+    const n = nav.stack.length + (nav.guarded ? 1 : 0);
+    nav.stack = [];
+    nav.guarded = false;
+    if (nav.asking) $("confirmDialog").close();
+    if (n > 0) {
+        nav.ignore++;
+        history.go(-n);
+    }
+}
+
+window.addEventListener("popstate", async () => {
+    if (nav.ignore) { nav.ignore--; return; }
+    if (!nav.guarded || appState() !== "incall") return;
+    if (nav.stack.length) {
+        restoreScreen(nav.stack.pop());
+        return;
+    }
+    // Back with no step left: the entry under the call screen. Leave, or stay on the call.
+    nav.guarded = false;
+    nav.asking = true;
+    const leave = await askConfirm("Leave the call?", `You will go back to the waiting room. ${peer?.name || "The other person"} stays in the room and can call you again.`, "Leave");
+    nav.asking = false;
+    if (appState() !== "incall") return; // the call ended meanwhile
+    if (leave) leaveCall();
+    else navStart();
+});
 $("btnLeave").addEventListener("click", leaveCall);
 $("btnJoin").addEventListener("click", () => {
     const entry = othersByPerson()[0];
@@ -896,7 +993,8 @@ function updateBar() {
 
 /* ---- The camera preview in the waiting room: the one opening of the camera and the microphone ---- */
 
-const preview = { stream: null, video: false, audio: false, pending: null, error: null };
+// hadVideo / hadAudio: the device was open once this visit, so a later loss of it is brought back
+const preview = { stream: null, video: false, audio: false, hadVideo: false, hadAudio: false, pending: null, error: null };
 let previewReady = Promise.resolve();
 
 // Opens the camera and the microphone for the preview, or what the browser allows of them. One opening at a time.
@@ -928,6 +1026,8 @@ async function openPreview() {
     }
     preview.video = Boolean(preview.stream?.getVideoTracks().length);
     preview.audio = Boolean(preview.stream?.getAudioTracks().length);
+    preview.hadVideo = preview.hadVideo || preview.video;
+    preview.hadAudio = preview.hadAudio || preview.audio;
     preview.error = preview.stream ? null : error;
     for (const t of preview.stream?.getTracks() || []) t.addEventListener("ended", () => previewTrackEnded(t));
 
@@ -947,6 +1047,85 @@ function previewTrackEnded(track) {
     if (!preview.video) $("previewVideo").srcObject = null;
     if (!preview.video && !preview.audio) preview.stream = null; // opened again after the call, which asks once more
     renderPrefs();
+}
+
+/*
+    Coming back from the background. A phone stops a page it puts in the background: its <video> and <audio>
+    elements are paused, and autoplay does not start them again on return (it only starts a fresh element). The
+    camera, and often the microphone, is taken away too: their tracks end, the SDK takes the ended tracks off the
+    call, and the tiles go on both sides. Nothing opened the devices again, so the video was gone for good.
+
+    On return (the page visible again, restored, or focused) every element is played again, and the devices that
+    were lost are opened again (no prompt: the permission is already given), into the preview, with copies of them
+    put back on the call. The other side gets them as new tracks. The visitor's own on/off choice is kept.
+*/
+let restoring = null;
+
+function onPageBack() {
+    if (document.hidden) return;
+    for (const el of document.querySelectorAll("video, audio")) {
+        if (el.srcObject && el.paused) el.play().catch(() => { });
+    }
+    if (remoteAudioStream.getTracks().length) playRemoteAudio();
+    restoreDevices();
+}
+document.addEventListener("visibilitychange", onPageBack);
+window.addEventListener("pageshow", onPageBack);
+window.addEventListener("focus", onPageBack);
+
+function liveTrack(stream, kind) {
+    return stream?.getTracks().find((t) => t.kind === kind && t.readyState === "live") || null;
+}
+
+function restoreDevices() {
+    if (!restoring) {
+        restoring = reopenDevices()
+            .catch((err) => {
+                console.warn("restoreDevices:", err?.message || err);
+                if (rtc) showError("The camera or the microphone could not be turned back on. Press its button to try again.");
+            })
+            .finally(() => { restoring = null; });
+    }
+    return restoring;
+}
+
+async function reopenDevices() {
+    await previewReady;
+    if (!preview.hadVideo && !preview.hadAudio) return; // never opened (blocked, or no device): nothing to bring back
+    const missing = {};
+    if (preview.hadVideo && !liveTrack(preview.stream, "video")) missing.video = true;
+    if (preview.hadAudio && !liveTrack(preview.stream, "audio")) missing.audio = true;
+    if (missing.video || missing.audio) {
+        const stream = await navigator.mediaDevices.getUserMedia(missing);
+        if (!preview.stream) preview.stream = new MediaStream();
+        for (const t of stream.getTracks()) {
+            preview.stream.addTrack(t);
+            t.addEventListener("ended", () => previewTrackEnded(t));
+        }
+        preview.video = Boolean(liveTrack(preview.stream, "video"));
+        preview.audio = Boolean(liveTrack(preview.stream, "audio"));
+        const video = $("previewVideo");
+        video.srcObject = preview.video ? preview.stream : null;
+        if (preview.video) video.play().catch(() => { });
+        renderPrefs();
+    }
+    if (!rtc) return; // the next call sends copies of the preview, as always
+
+    // the call: a copy of each device the call had and lost, back under its own name, with the visitor's choice
+    let changed = false;
+    for (const [source, kind, on] of [["camera", "video", camState.me], ["microphone", "audio", micState.me]]) {
+        const original = liveTrack(preview.stream, kind);
+        if (!original || rtc.tracks(source).some((t) => t.readyState === "live")) continue;
+        const copy = original.clone();
+        copy.enabled = on;
+        if (rtc.tracks(source).length) await rtc.replace(source, copy); // still on the call, but ended
+        else await rtc.share(copy, { source });
+        changed = true;
+    }
+    if (changed) {
+        refreshLocalTiles();
+        sendState();
+    }
 }
 
 // What the preview frame shows over the video: nothing, "Camera off", or why there is no camera.
@@ -1116,8 +1295,62 @@ $("btnEraser").addEventListener("click", () => {
     pen.eraser = !pen.eraser;
     $("btnEraser").setAttribute("aria-pressed", String(pen.eraser));
 });
-$("btnClear").addEventListener("click", () => clearBoard(true));
-$("btnBoardClose").addEventListener("click", () => closeBoard(true));
+// Clearing wipes the drawing on both sides and cannot be undone, so it asks first.
+$("btnClear").addEventListener("click", async () => {
+    if (await askConfirm("Clear the board?", "The drawing is wiped for both of you. Save it first if you want to keep it.", "Clear")) clearBoard(true);
+});
+$("btnBoardClose").addEventListener("click", () => closeBoardByUser());
+$("btnBoardSave").addEventListener("click", saveBoard);
+
+/*
+    The board as a PNG file. The canvas itself is transparent (the white is the page behind it, and the eraser cuts
+    back to transparency), so the picture is drawn onto white first, the way it looks on the screen.
+*/
+function saveBoard() {
+    const out = document.createElement("canvas");
+    out.width = board.width;
+    out.height = board.height;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(board, 0, 0);
+    out.toBlob((blob) => {
+        if (!blob) { showError("The drawing could not be saved."); return; }
+        const d = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `drawing-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.png`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+        showToast("Drawing saved");
+    }, "image/png");
+}
+
+/*
+    A question in the app's own dialog. Resolves true for the confirming button, false for Cancel, Escape or a
+    click outside. A second question while one is open replaces it; the first one resolves false.
+*/
+let confirmPending = null;
+function askConfirm(title, text, yesLabel) {
+    const dialog = $("confirmDialog");
+    if (confirmPending) confirmPending(false);
+    $("confirmTitle").textContent = title;
+    $("confirmText").textContent = text;
+    $("btnConfirmYes").textContent = yesLabel || "OK";
+    dialog.returnValue = "";
+    return new Promise((resolve) => {
+        confirmPending = (answer) => { confirmPending = null; resolve(answer); };
+        dialog.addEventListener("close", () => { if (confirmPending) confirmPending(dialog.returnValue === "yes"); }, { once: true });
+        if (!dialog.open) dialog.showModal(); // already open: the new question takes its place
+        $("btnConfirmNo").focus();
+    });
+}
+$("confirmDialog").addEventListener("click", (event) => {
+    if (event.target === $("confirmDialog")) $("confirmDialog").close(); // a click on the backdrop
+});
 
 /* ---------------------------------------------------------------------------------------------------
    Chat
@@ -1546,6 +1779,7 @@ function setState(state) {
     $("call").hidden = !inCall;
     $("bar").hidden = !inCall;
     if (inCall) {
+        navStart();
         if (chatWidth) setChatWidth(chatWidth, false); // the width chosen last time, within what this window allows
         autosize();
     }

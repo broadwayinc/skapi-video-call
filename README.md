@@ -92,7 +92,8 @@ The tools float at the top of the board:
 - **Colours**: six pens. The selected one has a white ring.
 - **Sizes**: thin, medium and thick.
 - **Eraser**: rubs out what is under the pointer. Press a colour to go back to drawing.
-- **Clear**: wipes the whole board, for both of you.
+- **Save**: saves the board as a picture (a PNG file named with the date and time), on a white background as you see it.
+- **Clear**: wipes the whole board, for both of you. It asks first, since a cleared board cannot be brought back.
 - **Close**: takes the board away, for both of you. Opening it again brings back what was drawn.
 
 The board stays open while you look at something else: click the other person's picture to see them, and click the board's small picture to come back. Drawing works with a mouse, a finger or a pen.
@@ -175,6 +176,10 @@ A crossed-out microphone in the corner of their picture means they are muted. A 
 ## On a phone
 
 Everything works the same way on a phone, laid out for a small screen. The chat covers the call while it is open; press the X at the top to go back to the video. The control buttons show icons only.
+
+The phone's **Back** button (or the browser's back) steps back through what you did on the call screen: it closes the chat you opened, puts back the picture you were looking at, closes the board you opened. When there is nothing left to step back, it asks whether you want to leave the call, so a Back press too many does not end it by accident.
+
+If you switch to another app during the call, your phone pauses the page and may turn the camera off. When you come back, the call picks up again by itself: your camera and microphone are turned back on, as you had them, and the other person sees you again.
 
 <p align="center">
 <img src="screenshots/phone-call.webp" width="230" alt="A call on a phone">

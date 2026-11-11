@@ -25,7 +25,7 @@
     <meta name="twitter:image" content="https://raw.githubusercontent.com/broadwayinc/skapi-video-call/master/og-image.png">
 
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.26/dist/skapi.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/skapi-js@2.2.30/dist/skapi.js"></script>
     <script src="markdown.js"></script>
     <script src="app.js" defer></script>
     <script type="application/ld+json">
@@ -203,6 +203,9 @@
                             <button type="button" class="tool" id="btnEraser" aria-pressed="false" title="Eraser">
                                 <svg class="icon"><use href="#i-eraser"/></svg><span>Eraser</span>
                             </button>
+                            <button type="button" class="tool" id="btnBoardSave" title="Save the board as an image">
+                                <svg class="icon"><use href="#i-download"/></svg><span>Save</span>
+                            </button>
                             <button type="button" class="tool" id="btnClear" title="Clear the board">
                                 <svg class="icon"><use href="#i-trash"/></svg><span>Clear</span>
                             </button>
@@ -312,6 +315,18 @@
             <div class="dialog-actions">
                 <button type="button" class="btn" id="btnSettingsClose">Cancel</button>
                 <button type="submit" class="btn primary">Save</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- A question before something that cannot be undone: clearing the board, leaving the call. -->
+    <dialog class="dialog" id="confirmDialog" aria-labelledby="confirmTitle">
+        <form method="dialog">
+            <h2 id="confirmTitle"></h2>
+            <p class="dialog-hint" id="confirmText"></p>
+            <div class="dialog-actions">
+                <button type="submit" class="btn" value="no" id="btnConfirmNo">Cancel</button>
+                <button type="submit" class="btn primary" value="yes" id="btnConfirmYes">OK</button>
             </div>
         </form>
     </dialog>
